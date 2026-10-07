@@ -7,6 +7,9 @@ test('request hook: inject only after success, preserve panels, abort on error/c
     const elements = [];
     class Element {
         constructor() { this.value = ''; this.style = {}; this.children = []; this.handlers = {}; elements.push(this); }
+        replaceChildren(...children) { this.children = children; }
+        showModal() { this.open = true; }
+        close() { this.open = false; }
         append(...children) { this.children.push(...children); }
         addEventListener(name, fn) { this.handlers[name] = fn; }
         setAttribute() {}
@@ -24,7 +27,7 @@ test('request hook: inject only after success, preserve panels, abort on error/c
     let sent;
     let mainAborted = false;
     const old = { document: globalThis.document, SillyTavern: globalThis.SillyTavern, fetch: globalThis.fetch };
-    globalThis.document = { createElement: () => new Element(), querySelector: () => mount };
+    globalThis.document = { body: new Element(), createElement: () => new Element(), querySelector: (selector) => selector.includes('extensions_menu') || selector.includes('extensionsMenu') ? mount : null };
     globalThis.SillyTavern = { getContext: () => c };
     globalThis.__czghTestHost = {
         getRequestHeaders: () => ({ 'Content-Type': 'application/json', 'X-CSRF-Token': 'test' }),
@@ -38,8 +41,16 @@ test('request hook: inject only after success, preserve panels, abort on error/c
     try {
         const source = (await readFile(new URL('./index.js', import.meta.url), 'utf8'))
             .replace("import { getRequestHeaders, stopGeneration } from '/script.js';", 'const { getRequestHeaders, stopGeneration } = globalThis.__czghTestHost;')
-            .replace("from './core.js'", `from '${new URL('./core.js', import.meta.url).href}'`);
+            .replace("from './core.js'", `from '${new URL('./core.js', import.meta.url).href}'`)
+            .replace("from './profiles.js'", `from '${new URL('./profiles.js', import.meta.url).href}'`);
         await import(`data:text/javascript;base64,${Buffer.from(source + '\n//# sourceURL=czgh-runtime-under-test.js').toString('base64')}`);
+        const menu = elements.find(e => e.id === 'czgh-planner-menu');
+        assert.ok(menu, 'magic wand entry exists without settings panel');
+        menu.handlers.click();
+        const dialog = elements.find(e => e.id === 'czgh_external_planner');
+        assert.equal(dialog.open, true);
+        elements.find(e => e.textContent === '关闭').handlers.click();
+        assert.equal(dialog.open, false);
         const config = c.extensionSettings.czgh_external_planner;
         Object.assign(config, { enabled: true, apiUrl: 'https://example.org/v1', model: 'p' });
         const messages = [{ role: 'system', content: '<Abstract>写作准备</Abstract>；展开的记忆；生成状态栏' }, { role: 'user', content: '用户输入' }];
@@ -98,6 +109,43 @@ test('request hook: inject only after success, preserve panels, abort on error/c
         await emit(events.CHAT_COMPLETION_SETTINGS_READY, skipped);
         assert.equal(stopped, previousStops);
         assert.deepEqual(skipped.messages, messages);
+
+        const profile = { id: 'saved', name: '已保存规划 API', source: 'custom', model: 'profile-model', secretId: 'profile-secret', connection: { custom_url: 'https://profile.example/v1' } };
+        c.extensionSettings.preset_compare_api_manager = { version: 1, profiles: [profile] };
+        const storeBefore = structuredClone(c.extensionSettings.preset_compare_api_manager);
+        elements.find(e => e.textContent === '刷新 API 方案').handlers.click();
+        const profileSelect = elements.find(e => e.id === 'czgh-profile-select');
+        assert.ok(profileSelect.children.some(e => e.textContent === profile.name));
+        profileSelect.value = 'saved'; profileSelect.handlers.change();
+        globalThis.fetch = async (url, options) => {
+            if (url === '/api/secrets/read') return { ok: true, json: async () => ({ api_key_custom: [{ id: 'other', active: true }, { id: 'profile-secret', active: false }] }) };
+            const body = JSON.parse(options.body);
+            assert.equal(body.secret_id, 'profile-secret'); assert.equal(body.model, 'profile-model');
+            assert.equal(body.custom_url, 'https://profile.example/v1');
+            return { ok: true, json: async () => ({ choices: [{ message: { content: '<Abstract>方案规划</Abstract>' }, finish_reason: 'stop' }] }) };
+        };
+        const profiled = { type: 'normal', messages: structuredClone(messages) };
+        await emit(events.CHAT_COMPLETION_SETTINGS_READY, profiled);
+        assert.match(profiled.messages.at(-1).content, /方案规划/);
+        assert.deepEqual(c.extensionSettings.preset_compare_api_manager, storeBefore);
+        assert.equal(config.model, 'p'); // manual config untouched too
+
+        let generationCalls = 0;
+        globalThis.fetch = async (url) => {
+            if (url !== '/api/secrets/read') generationCalls++;
+            return { ok: true, json: async () => ({ api_key_custom: [{ id: 'other', active: true }] }) };
+        };
+        const missingKey = { type: 'normal', messages: structuredClone(messages) };
+        await emit(events.CHAT_COMPLETION_SETTINGS_READY, missingKey);
+        assert.equal(generationCalls, 0); assert.deepEqual(missingKey.messages, messages);
+        c.extensionSettings.preset_compare_api_manager.profiles = [];
+        elements.find(e => e.textContent === '刷新 API 方案').handlers.click();
+        assert.equal(config.profileId, 'saved'); // no silent fallback
+        assert.ok(profileSelect.children.some(e => e.textContent.includes('已不存在')));
+        globalThis.fetch = async () => { throw new Error('deleted profile must not call API'); };
+        const deleted = { type: 'normal', messages: structuredClone(messages) };
+        await emit(events.CHAT_COMPLETION_SETTINGS_READY, deleted);
+        assert.deepEqual(deleted.messages, messages);
     } finally {
         Object.assign(globalThis, old);
         delete globalThis.__czghTestHost;

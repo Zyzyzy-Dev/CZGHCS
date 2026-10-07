@@ -1,11 +1,12 @@
 {
-  "display_name": "外置写作规划 · 测试版",
+  "display_name": "创作规划",
   "loading_order": 200,
   "requires": [],
   "optional": [],
   "js": "index.js",
+  "css": "style.css",
   "author": "Zyzyzy-Dev",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "homePage": "https://github.com/Zyzyzy-Dev/CZGHCS",
   "auto_update": false
 }

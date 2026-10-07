@@ -1,7 +1,8 @@
 {
-  "name": "czgh-external-planner",
-  "version": "0.1.1",
+  "name": "czgh-creative-planning",
+  "description": "创作规划：为酒馆独立生成并注入写作规划",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test", "check": "node --check index.js && node --check core.js" }
+  "scripts": { "test": "node --test", "check": "node --check index.js && node --check core.js && node --check profiles.js" }
 }

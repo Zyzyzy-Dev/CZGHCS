@@ -2,6 +2,7 @@ export const defaults = Object.freeze({
     enabled: false,
     apiUrl: '',
     model: '',
+    profileId: '',
     maxTokens: 6000,
     timeoutSeconds: 180,
     tagMode: 'auto',
