@@ -42,7 +42,7 @@ test('request hook: inject only after success, preserve panels, abort on error/c
         await import(`data:text/javascript;base64,${Buffer.from(source + '\n//# sourceURL=czgh-runtime-under-test.js').toString('base64')}`);
         const config = c.extensionSettings.czgh_external_planner;
         Object.assign(config, { enabled: true, apiUrl: 'https://example.org/v1', model: 'p' });
-        const messages = [{ role: 'system', content: '展开的记忆；生成状态栏' }, { role: 'user', content: '用户输入' }];
+        const messages = [{ role: 'system', content: '<Abstract>写作准备</Abstract>；展开的记忆；生成状态栏' }, { role: 'user', content: '用户输入' }];
         const data = { type: 'normal', messages: structuredClone(messages) };
         await emit(events.CHAT_COMPLETION_SETTINGS_READY, data);
         assert.deepEqual(sent.messages.slice(0, -1), messages);
@@ -54,6 +54,23 @@ test('request hook: inject only after success, preserve panels, abort on error/c
         await emit(events.CHAT_COMPLETION_SETTINGS_READY, { type: 'quiet', messages });
         assert.equal(calls, 1);
         assert.ok(!JSON.stringify(config).includes('apiKey'));
+
+        globalThis.fetch = async (_, options) => {
+            const body = JSON.parse(options.body);
+            assert.match(body.messages.at(-1).content, /<Think>规划内容<\/Think>/);
+            assert.ok(!body.messages.at(-1).content.includes('<Abstract>'));
+            return { ok: true, json: async () => ({ choices: [{ message: { content: '<Think>切换后的计划</Think>' }, finish_reason: 'stop' }] }) };
+        };
+        const switched = { type: 'normal', messages: [{ role: 'system', content: '<Think>思维链</Think>，随后生成正文和状态栏' }] };
+        await emit(events.CHAT_COMPLETION_SETTINGS_READY, switched);
+        assert.match(switched.messages.at(-1).content, /<Think>\n切换后的计划\n<\/Think>/);
+        assert.match(elements.find(e => e.readOnly).value, /^<Think>/);
+
+        globalThis.fetch = async () => { throw new Error('ambiguous tags must not reach API'); };
+        const ambiguous = { type: 'normal', messages: [{ role: 'system', content: '<Think>思维链</Think>\n<Abstract>写作准备</Abstract>' }] };
+        await emit(events.CHAT_COMPLETION_SETTINGS_READY, ambiguous);
+        assert.equal(ambiguous.messages.length, 1);
+        assert.ok(elements.some(e => typeof e.textContent === 'string' && e.textContent.includes('多个可能的规划标签')));
 
         globalThis.fetch = async () => ({ ok: false, status: 503 });
         const failed = { type: 'swipe', messages: structuredClone(messages) };

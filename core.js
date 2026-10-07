@@ -4,12 +4,61 @@ export const defaults = Object.freeze({
     model: '',
     maxTokens: 6000,
     timeoutSeconds: 180,
-    openTag: '<Abstract>',
-    closeTag: '</Abstract>',
+    tagMode: 'auto',
+    openTag: '',
+    closeTag: '',
     rules: '[]',
     plannerInstruction: '按当前预设已启用的写作准备问题逐项完成本轮公开创作规划。保留主题、编号、具体依据和创作要求；区分已发生事实与本轮拟写安排。只输出规划，不生成正文、状态栏、时间戳或其他附加成品。',
     writerInstruction: '本轮写作规划已在下方提供。将预设中要求生成、展示或再次回答规划的问题视为已经完成，不重复输出规划区块。从规划之后的实际成品开始，按规划完成本轮回复。继续遵守原预设的人设、文风、正文、顶栏、状态栏、时间戳、摘要及其他附加内容要求：原本要求生成的照常生成，原本未要求或禁止的不要新增。规划中的拟写安排不是已发生的历史事实；与用户最新输入或已知事实冲突时以原始资料为准。',
 });
+
+// Conservative recognition of explicit format instructions, not past assistant output.
+// Ambiguous/unsupported layouts require a manual override; never silently guess Abstract.
+export function resolvePlanningTags(messages, settings) {
+    if (settings.tagMode === 'manual') return { openTag: settings.openTag, closeTag: settings.closeTag };
+    const candidates = new Map();
+    const cue = /思维链|写作准备|创作准备|规划|思考|推演|reasoning|planning|thinking/i;
+    const forbidden = /^(?:content|body|status.*|bbs_.*|details|summary|div|span|p|script|style|system|user|assistant)$/i;
+    for (const message of messages) {
+        if (!['system', 'developer'].includes(message.role) || typeof message.content !== 'string') continue;
+        const lines = message.content.split(/\r?\n/);
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const tokens = [...line.matchAll(/<(\/?)([\p{L}_][\p{L}\p{N}_.:-]*)\s*>/gu)];
+            for (let j = 0; j < tokens.length; j++) {
+                const token = tokens[j];
+                const name = token[2];
+                if (forbidden.test(name)) continue;
+                const before = line.slice(Math.max(0, token.index - 90), token.index);
+                const after = line.slice(token.index + token[0].length, tokens[j + 1]?.index ?? token.index + token[0].length + 70);
+                const previous = lines[i - 1] || '';
+                // Never interpret an explicit ban, a legacy alternative or quoted negative example as selection.
+                if (/(?:不要|不得|禁止|不使用|不再|而非|不是|旧版|旧标签|错误示例|do not|don't|instead of)[^。；;\n]*$/i.test(before)) continue;
+                const close = tokens[j + 1];
+                const enclosesCue = !token[1] && close?.[1] === '/' && close[2] === name && cue.test(after);
+                const directive = cue.test(before) && /标签|包裹|放在|输出|关闭|格式|使用|tag|wrap|output|close/i.test(before);
+                const standalone = tokens.length === 1 && line.trim() === token[0] && cue.test(previous) && /标签|输出|使用|tag|output/i.test(previous);
+                if (enclosesCue || directive || standalone) {
+                    candidates.set(name, { openTag: `<${name}>`, closeTag: `</${name}>` });
+                }
+            }
+        }
+    }
+    if (candidates.size === 1) return [...candidates.values()][0];
+    if (candidates.size > 1) throw new Error(`预设中有多个可能的规划标签：${[...candidates.keys()].join('、')}。请在扩展中手动指定本轮预设使用的标签。`);
+    throw new Error('未能从已生效指令中明确识别规划标签。请在扩展中选择手动指定；不会使用固定默认标签。');
+}
+
+export function migrateSettings(saved = {}) {
+    const merged = { ...defaults, ...saved };
+    if (!saved.tagMode) {
+        // Preserve an explicit non-default override from 0.1.0; migrate its default to auto.
+        merged.tagMode = saved.openTag && saved.closeTag
+            && (saved.openTag !== '<Abstract>' || saved.closeTag !== '</Abstract>') ? 'manual' : 'auto';
+        if (merged.tagMode === 'auto') { merged.openTag = ''; merged.closeTag = ''; }
+    }
+    return merged;
+}
 
 export function validateSettings(settings) {
     const url = new URL(settings.apiUrl);

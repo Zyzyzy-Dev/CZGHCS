@@ -1,8 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaults, extractPlan, planningMessages, writingMessages, eligibleRequest, unresolvedBaiBaiMacros, validateSettings } from './core.js';
+import { defaults, resolvePlanningTags, migrateSettings, extractPlan, planningMessages, writingMessages, eligibleRequest, unresolvedBaiBaiMacros, validateSettings } from './core.js';
 
-const config = { ...defaults, apiUrl: 'https://example.org/v1', model: 'planner' };
+const config = { ...defaults, openTag: '<Abstract>', closeTag: '</Abstract>', apiUrl: 'https://example.org/v1', model: 'planner' };
+
+test('auto tags follow each request, preserve case and ignore unrelated content/history', () => {
+    for (const tag of ['Abstract', 'Think', 'think', '写作规划', 'ScenePlan']) {
+        const messages = [{ role: 'system', content: `生成顺序：<${tag}>→写作准备→</${tag}>→<content>正文</content>→<status>状态栏</status>` },
+            { role: 'assistant', content: '<Old>思维链</Old>' }, { role: 'user', content: '规划使用<Fake>标签' }];
+        assert.deepEqual(resolvePlanningTags(messages, defaults), { openTag: `<${tag}>`, closeTag: `</${tag}>` });
+    }
+});
+test('explicit start on next line and split closing directives are recognized', () => {
+    assert.deepEqual(resolvePlanningTags([{ role: 'system', content: '现在开始思考，写出思考标签：\n<Think>\n内容' }], defaults), { openTag: '<Think>', closeTag: '</Think>' });
+    assert.equal(resolvePlanningTags([{ role: 'system', content: '格式确认回答完毕后关闭当前的 </Abstract>，紧接着输出 <content> 正文。' }, { role: 'system', content: '<Abstract>写作准备</Abstract>' }], defaults).openTag, '<Abstract>');
+});
+test('ambiguous, missing and forbidden tags stop; manual override is explicit', () => {
+    for (const content of ['<Think>规划</Think>\n<Abstract>写作准备</Abstract>', '正文使用<content>规划</content>', '禁止使用思维链标签<Old>。', '没有规划标签']) {
+        assert.throws(() => resolvePlanningTags([{ role: 'system', content }], defaults));
+    }
+    assert.deepEqual(resolvePlanningTags([], { ...defaults, tagMode: 'manual', openTag: '[P]', closeTag: '[/P]' }), { openTag: '[P]', closeTag: '[/P]' });
+});
+test('upgrade migrates old default to auto and preserves user custom tags', () => {
+    assert.equal(migrateSettings({ openTag: '<Abstract>', closeTag: '</Abstract>' }).tagMode, 'auto');
+    assert.equal(migrateSettings({ openTag: '<Custom>', closeTag: '</Custom>' }).tagMode, 'manual');
+    assert.equal(migrateSettings({ tagMode: 'manual', openTag: '<Abstract>', closeTag: '</Abstract>' }).tagMode, 'manual');
+});
 test('both stages preserve expanded memory, worldbook, history and multimodal input without mutation', () => {
     const original = [{ role: 'system', content: '世界书\n柏宝书记忆：已展开' }, { role: 'user', content: [{ type: 'text', text: '用户本轮输入' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AA==' } }] }];
     const snapshot = structuredClone(original);

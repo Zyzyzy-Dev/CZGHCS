@@ -1,5 +1,5 @@
 import { getRequestHeaders, stopGeneration } from '/script.js';
-import { defaults, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from './core.js';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from './core.js';
 
 const ID = 'czgh_external_planner';
 const ctx = () => SillyTavern.getContext();
@@ -55,18 +55,20 @@ async function onRequest(data) {
     const timer = setTimeout(() => run.controller.abort(), Number(config.timeoutSeconds) * 1000);
     previewNode.value = '';
     try {
+        Object.assign(config, resolvePlanningTags(original, config));
         validateSettings(config);
         if (unresolvedBaiBaiMacros(original)) throw new Error('发现尚未展开的柏宝书宏，请检查宏设置后重试。');
-        status('正在生成本轮规划；完成后自动继续正文…');
+        status(`正在按 ${config.openTag}…${config.closeTag} 生成本轮规划；完成后自动继续正文…`);
         const plan = await requestPlan(planningMessages(original, config), config, apiKey, run.controller.signal);
         if (run.controller.signal.aborted || run.identity !== chatIdentity()) throw new Error('本轮已取消或聊天已切换。');
         data.messages = writingMessages(original, plan, config);
-        previewNode.value = plan;
+        previewNode.value = `${config.openTag}\n${plan}\n${config.closeTag}`;
         status(`规划已注入（${plan.length} 字符），正在生成正文。`);
     } catch (error) {
         // ST's event emitter swallows thrown errors. Explicitly abort main generation.
+        const wasAborted = run.controller.signal.aborted;
         stopGeneration();
-        status(run.controller.signal.aborted
+        status(wasAborted
             ? '规划已停止或超时；未注入。可重新发送，或选择下次跳过。'
             : `${error.message} 正文已停止；可重新发送或选择下次跳过。`);
     } finally {
@@ -99,11 +101,11 @@ function init() {
     const mount = document.querySelector('#extensions_settings2') || document.querySelector('#extensions_settings');
     if (!mount) return;
     initialized = true;
-    c.extensionSettings[ID] = { ...defaults, ...c.extensionSettings[ID] };
+    c.extensionSettings[ID] = migrateSettings(c.extensionSettings[ID]);
     const panel = document.createElement('details');
     panel.id = ID;
     const title = document.createElement('summary');
-    title.textContent = '外置写作规划 · 0.1.0 测试版';
+    title.textContent = '外置写作规划 · 0.1.1 测试版';
     panel.append(title);
     const note = document.createElement('p');
     note.textContent = '开启后，本轮完整请求内容会发送给下方配置的独立规划 API。原预设要求的状态栏等附加内容照常保留。首次使用请预留规划注入后的上下文空间。';
@@ -123,7 +125,22 @@ function init() {
     field(panel, '规划模型名称', 'model');
     field(panel, '规划最大输出 token', 'maxTokens', 'number');
     field(panel, '超时秒数', 'timeoutSeconds', 'number');
-    field(panel, '规划开始标签', 'openTag'); field(panel, '规划结束标签', 'closeTag');
+    const tagLabel = document.createElement('label');
+    tagLabel.textContent = '规划标签来源';
+    const tagMode = document.createElement('select');
+    tagMode.className = 'text_pole';
+    for (const [value, text] of [['auto', '自动跟随本轮预设'], ['manual', '手动指定（无法识别时使用）']]) {
+        const option = document.createElement('option'); option.value = value; option.textContent = text; tagMode.append(option);
+    }
+    tagMode.value = settings().tagMode;
+    tagLabel.append(tagMode); panel.append(tagLabel);
+    const openInput = field(panel, '手动：规划开始标签', 'openTag');
+    const closeInput = field(panel, '手动：规划结束标签', 'closeTag');
+    const updateTagMode = () => {
+        openInput.disabled = closeInput.disabled = tagMode.value !== 'manual';
+    };
+    tagMode.addEventListener('change', () => { settings().tagMode = tagMode.value; c.saveSettingsDebounced(); updateTagMode(); });
+    updateTagMode();
     field(panel, '规划阶段引导', 'plannerInstruction', 'textarea');
     field(panel, '正文阶段引导（保留所需附加内容）', 'writerInstruction', 'textarea');
     field(panel, '高级：正文阶段精确替换规则 JSON（仅 system/developer 消息）', 'rules', 'textarea');
