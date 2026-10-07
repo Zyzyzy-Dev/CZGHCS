@@ -9,9 +9,12 @@ export function createApiSchemes(host) {
         return id.slice(6);
     };
     const read = () => migrateSchemes(host.read());
+    const release = async (ref, state) => {
+        if (ref && !state.schemes.api.some(p => p.payload.keyRef === ref)) await host.vault?.remove(ref);
+    };
     return {
         async list() {
-            return [{ id: 'current', name: '酒馆当前连接', origin: 'current' }, ...host.external().map(p => ({ id: `external:${p.id}`, name: p.name, origin: 'external', model: p.model, apiUrl: p.connection?.custom_url || '' })), ...read().schemes.api.map(p => ({ id: `local:${p.id}`, name: p.name, origin: 'local', model: p.payload.model, apiUrl: p.payload.connection?.custom_url || p.payload.apiUrl || '', hasKey: !!p.payload.secretId }))];
+            return [{ id: 'current', name: '酒馆当前连接', origin: 'current' }, ...host.external().map(p => ({ id: `external:${p.id}`, name: p.name, origin: 'external', model: p.model, apiUrl: p.connection?.custom_url || '' })), ...read().schemes.api.map(p => ({ id: `local:${p.id}`, name: p.name, origin: 'local', model: p.payload.model, apiUrl: p.payload.connection?.custom_url || p.payload.apiUrl || '', hasKey: !!(p.payload.secretId || p.payload.keyRef) }))];
         },
         async resolve(selection) {
             let config;
@@ -24,21 +27,32 @@ export function createApiSchemes(host) {
         save({ id, name, config, key }) {
             return serial(async () => {
                 if (id) localId(id);
-                // 1.18.0 /secrets/write activates a new key. Never use it behind the user's back.
-                if (key) throw new Error('当前酒馆不支持在保持活动密钥不变的情况下保存新密钥。');
                 const state = read();
                 const next = applySchemeOperation(state, { kind: 'api', operation: id ? 'overwrite' : 'create', id: id ? localId(id) : undefined, name, payload: config });
                 const saved = id ? next.schemes.api.find(p => p.id === localId(id)) : next.schemes.api.at(-1);
+                const oldRef = id ? state.schemes.api.find(p => p.id === localId(id))?.payload.keyRef : null;
+                let newRef;
+                if (key) {
+                    if (!host.vault) throw new Error('本地密钥存储不可用。');
+                    newRef = await host.vault.put(key);
+                    saved.payload.keyRef = newRef;
+                    delete saved.payload.secretId;
+                }
                 next.apiSelection = `local:${saved.id}`;
-                await host.write(next);
+                try { await host.write(next); }
+                catch (error) { if (newRef) await host.vault.remove(newRef); throw error; }
+                await release(oldRef, next);
                 return structuredClone(saved);
             });
         },
         remove(id) {
             return serial(async () => {
-                const next = applySchemeOperation(read(), { kind: 'api', operation: 'delete', id: localId(id) });
-                if (next.apiSelection === id) next.apiSelection = 'current';
+                const previous = read();
+                const oldRef = previous.schemes.api.find(p => p.id === localId(id))?.payload.keyRef;
+                const next = applySchemeOperation(previous, { kind: 'api', operation: 'delete', id: localId(id) });
+                if (next.apiSelection === id) next.apiSelection = '';
                 await host.write(next);
+                await release(oldRef, next);
             });
         },
         async models(config) {

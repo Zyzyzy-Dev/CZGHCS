@@ -17,9 +17,9 @@ export function resolveProfile(settings, id) {
     return p;
 }
 export function profileRequest(profile, messages, maxTokens, parseYaml) {
-    if (profile.source !== 'custom' || !profile.secretId || !profile.model) throw new Error('API 方案缺少模型或密钥引用。');
+    if (profile.source !== 'custom' || !(profile.secretId || profile.keyRef) || !profile.model) throw new Error('API 方案缺少模型或密钥引用。');
     const body = { chat_completion_source: 'custom', custom_url: profile.connection.custom_url,
-        secret_id: profile.secretId, model: profile.model, messages: structuredClone(messages), stream: false, max_tokens: Number(maxTokens) };
+        secret_id: profile.keyRef ? `czgh-local:${profile.keyRef}` : profile.secretId, model: profile.model, messages: structuredClone(messages), stream: false, max_tokens: Number(maxTokens) };
     const protectedFields = new Set(['messages', 'model', 'stream', 'max_tokens', 'max_completion_tokens', 'prompt', 'tools', 'tool_choice', 'functions', 'function_call', 'n', 'secret_id', 'chat_completion_source', 'custom_url', 'reverse_proxy', 'proxy_password', '__proto__', 'constructor', 'prototype']);
     for (const field of ['custom_include_body', 'custom_exclude_body', 'custom_include_headers']) {
         const raw = profile.additional?.[field];
@@ -35,4 +35,10 @@ export function profileRequest(profile, messages, maxTokens, parseYaml) {
         body[field] = raw;
     }
     return body;
+}
+
+export function authorizeLocalRequest(body, key, parseYaml) {
+    if (typeof key !== 'string' || !key.trim() || /[\r\n]/.test(key)) throw new Error('本地密钥不可用。');
+    const headers = body.custom_include_headers ? parseYaml(body.custom_include_headers) : {};
+    return { ...body, custom_include_headers: JSON.stringify({ ...headers, Authorization: `Bearer ${key.trim()}` }) };
 }

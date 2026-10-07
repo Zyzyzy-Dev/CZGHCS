@@ -18,18 +18,19 @@ export function renderView(root, state, ui, act) {
         root.append(check('启用创作规划',s.enabled,v=>act('settings.update',{enabled:v})));
         const api=el('div','section-body');
         const profile=state.profiles.find(p=>p.id===s.apiSelection);
+        const apiOptions=profile?state.profiles:[{id:s.apiSelection||'',name:'原方案不可用，请重新选择',origin:'missing'},...state.profiles];
         const draft=ui.apiDraft;
-        const bar=el('div','scheme-bar');bar.append(el('span','muted','方案'),select('API 方案',state.profiles.map(p=>({...p,name:`${p.origin==='external'?'编辑器 · ':p.origin==='local'?'本地 · ':''}${p.name}`})),s.apiSelection,async value=>{ui.apiDraft={};await act('settings.update',{apiSelection:value});}));
+        const bar=el('div','scheme-bar');bar.append(el('span','muted','方案'),select('API 方案',apiOptions.map(p=>({...p,name:`${p.origin==='external'?'编辑器 · ':p.origin==='local'?'本地 · ':''}${p.name}`})),s.apiSelection,async value=>{ui.apiDraft={};await act('settings.update',{apiSelection:value});}));
         const save=async overwrite=>{const name=await ask(overwrite?'覆盖 API 方案':'新建 API 方案',overwrite?profile?.name:'');if(name)await act('api.save',{id:overwrite?s.apiSelection:undefined,sourceId:s.apiSelection,name,apiUrl:draft.apiUrl,model:draft.model,key:draft.key});};
         bar.append(button('新建 API 方案',()=>save(false),'+'));
         const over=button('覆盖 API 方案',()=>save(true),'↥');over.disabled=profile?.origin!=='local';bar.append(over);
         const del=button('删除 API 方案',async()=>{if(await ask('删除此 API 方案？','',true))await act('api.remove',{id:s.apiSelection});},'⌫');del.disabled=profile?.origin!=='local';bar.append(del);api.append(bar);
         api.append(field('URL',draft.apiUrl??profile?.apiUrl,v=>draft.apiUrl=v));
-        const key=field('Key',draft.key||'',v=>draft.key=v,'password');key.append(button('显示或隐藏密钥',()=>{const input=key.querySelector('input');input.type=input.type==='password'?'text':'password';},'◉'));api.append(key);
+        const key=field('Key',draft.key||'',v=>draft.key=v,'password');key.querySelector('input').placeholder=profile?.hasKey?'已保存，留空保留原密钥':'输入新密钥';key.append(button('显示或隐藏密钥',()=>{const input=key.querySelector('input');input.type=input.type==='password'?'text':'password';},'◉'));api.append(key);
         const model=field('模型',draft.model??profile?.model,v=>draft.model=v);model.querySelector('input').setAttribute('list','model-list');model.append(button('拉取模型',async()=>{ui.models=await act('api.models',{},false);renderView(root,state,ui,act);}));api.append(model);
         const list=el('datalist');list.id='model-list';for(const name of ui.models||[]){const o=el('option');o.value=name;list.append(o);}api.append(list);
         const numbers=el('div','two-fields');numbers.append(field('最大输出',s.maxTokens,v=>act('settings.update',{maxTokens:v}),'number'),field('超时秒数',s.timeoutSeconds,v=>act('settings.update',{timeoutSeconds:v}),'number'));api.append(numbers);
-        api.append(el('p','hint','编辑器方案只读；新建和覆盖仅保存到创作规划。'));
+        api.append(el('p','hint','自动记住上次使用的方案。编辑器方案只读；新建和覆盖仅保存到创作规划。新密钥保存在当前浏览器，刷新后保留；清除网站数据会删除密钥，不自动同步到其他设备。'));
         root.append(section('通用设置',api));
         const compatibility=el('div','section-body');
         for(const [category,label] of [['memory','记忆插件'],['plot','剧情规划插件']]){compatibility.append(el('h3','',label));for(const plugin of state.compatibility.filter(p=>p.category===category)){const line=el('div','plugin-row');line.append(check(plugin.name,selection.compatibilityIds.includes(plugin.id),v=>act('selection.update',{compatibilityIds:v?[...selection.compatibilityIds,plugin.id]:selection.compatibilityIds.filter(x=>x!==plugin.id)})),el('small','muted',plugin.status));compatibility.append(line);}}

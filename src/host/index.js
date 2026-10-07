@@ -1,5 +1,5 @@
 /* 酒馆宿主入口：魔法棒面板、受限 RPC、规划请求和楼内 iframe 生命周期。 */
-import { getRequestHeaders, stopGeneration } from '/script.js';
+import { getRequestHeaders, stopGeneration, saveSettings } from '/script.js';
 import { createPlanner } from './planner.js';
 import { createWorkbench } from './workbench.js';
 import { createMessagePlans } from './message-plans.js';
@@ -19,7 +19,7 @@ function init(){
     frame.style.cssText='display:block!important;width:100%!important;height:100%!important;border:0!important;margin:0!important;padding:0!important;background:transparent!important;';dialog.append(frame);document.body.append(dialog);
     const send=(type,payload)=>frame.contentWindow?.postMessage({channel:CHANNEL,type,payload},location.origin);
     const theme=()=>themeSnapshot(getComputedStyle(document.body));
-    const workbench=createWorkbench({context:ctx,headers:getRequestHeaders});
+    const workbench=createWorkbench({context:ctx,headers:getRequestHeaders,saveSettings});
     const panelFrames=new Map();
     const plans=createMessagePlans({chatId,messages:()=>ctx().chat||[],save:()=>ctx().saveChat(),display:()=>!!ctx().extensionSettings[ID]?.displayPlan,render:records=>{
         for(const [id,item] of panelFrames)if(!records.some(r=>r.messageId===id)||!item.frame.isConnected){item.frame.remove();panelFrames.delete(id);}

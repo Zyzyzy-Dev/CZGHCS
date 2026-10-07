@@ -8,11 +8,19 @@ import { buildPlanningContext } from '../planning/context.js';
 import { cleanSettings } from '../bridge/protocol.js';
 import { materializePluginMacros } from './plugin-macros.js';
 import { freezeCurrentRequest } from '../planning/current-request.js';
+import { createCredentialStore } from './credential-store.js';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js';
 const ID = 'czgh_external_planner';
-export function createWorkbench({ context, headers }) {
+export function createWorkbench({ context, headers, saveSettings }) {
     let source;
+    const vault = createCredentialStore();
+    const parseYaml = text => globalThis.SillyTavern.libs?.yaml?.parse?.(text) ?? JSON.parse(text);
     const read = () => migrateSchemes(context().extensionSettings[ID]);
-    const write = async value => { context().extensionSettings[ID] = value; context().saveSettingsDebounced(); };
+    const write = async value => {
+        context().extensionSettings[ID] = value;
+        if (saveSettings) await saveSettings();
+        else context().saveSettingsDebounced();
+    };
     const external = () => {
         const store = context().extensionSettings.preset_compare_api_manager;
         if (store && (store.version !== 1 || !Array.isArray(store.profiles))) throw new Error('外部 API 方案格式不受支持。');
@@ -26,8 +34,10 @@ export function createWorkbench({ context, headers }) {
         const secretId = (await response.json()).api_key_custom?.find(x => x.active)?.id;
         return { source: 'custom', model: c.custom_model, connection: { custom_url: c.custom_url }, secretId };
     }
-    const api = createApiSchemes({ read, write, external, current, models: async config => {
-        const response = await fetch('/api/backends/chat-completions/status', { method: 'POST', headers: headers(), body: JSON.stringify({ chat_completion_source: 'custom', custom_url: config.connection?.custom_url || config.apiUrl, secret_id: config.secretId }) });
+    const api = createApiSchemes({ read, write, external, current, vault, models: async config => {
+        let request = profileRequest({ ...config, model: config.model || 'models' }, [], 1, parseYaml);
+        if (config.keyRef) request = authorizeLocalRequest(request, await vault.get(config.keyRef), parseYaml);
+        const response = await fetch('/api/backends/chat-completions/status', { method: 'POST', headers: headers(), body: JSON.stringify(request) });
         if (!response.ok) throw new Error('模型拉取失败，可手动输入模型名称。');
         const data = await response.json();
         if (!Array.isArray(data.data)) throw new Error('API 没有返回模型列表，可手动输入。');
@@ -69,7 +79,7 @@ export function createWorkbench({ context, headers }) {
                 await write(state); source = null;
             } else if (method === 'api.save') {
                 let base = {};
-                if (payload.sourceId) base = await api.resolve(payload.sourceId);
+                if (payload.sourceId && !(payload.key && payload.apiUrl && payload.sourceId === 'current')) base = await api.resolve(payload.sourceId);
                 const config = { ...base, source: 'custom', model: payload.model || base.model || '', connection: { custom_url: payload.apiUrl || base.connection?.custom_url || '' } };
                 const url = new URL(config.connection.custom_url);
                 if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请填写有效的 HTTP(S) 基础地址。');
@@ -110,6 +120,10 @@ export function createWorkbench({ context, headers }) {
                 return { ...built, request: currentRequest };
             }
             const profile = await api.resolve(state.apiSelection);
+            if (profile.keyRef) {
+                const request = authorizeLocalRequest(profileRequest(profile, [], config.maxTokens, parseYaml), await vault.get(profile.keyRef), parseYaml);
+                return { ...built, request };
+            }
             if (!profile.secretId) throw new Error('此方案尚无可用密钥引用，请选择已保存的 API 方案。');
             return { ...built, profile };
         },
