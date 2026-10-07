@@ -14,3 +14,17 @@ export function cleanSettings(value) {
         typeof value[key] === typeof initial && (typeof initial !== 'number' || Number.isFinite(value[key]))
     ).map(([key]) => [key, value[key]]));
 }
+const METHODS = new Set(['state.read', 'settings.update', 'api.save', 'api.remove', 'api.models', 'scheme.save', 'scheme.remove', 'selection.update', 'sources.refresh', 'planner.cancel', 'ui.close']);
+export function validateRpc(data) {
+    if (!data || typeof data.requestId !== 'string' || data.requestId.length > 100 || !METHODS.has(data.method)) throw new Error('无效的界面请求。');
+    if (JSON.stringify(data.payload).length > 262144) throw new Error('界面请求过大。');
+    const visit = value => {
+        if (!value || typeof value !== 'object') return;
+        for (const [key, child] of Object.entries(value)) {
+            if (['__proto__', 'constructor', 'prototype'].includes(key)) throw new Error('界面请求字段无效。');
+            visit(child);
+        }
+    };
+    visit(data.payload);
+    return data;
+}

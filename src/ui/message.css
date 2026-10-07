@@ -1,0 +1,2 @@
+/* 楼内独立样式：主题只使用约定的五个宿主变量。 */
+*{box-sizing:border-box}html,body{margin:0;padding:0;color:var(--SmartThemeBodyColor,#28354c);font:12px var(--mainFontFamily,Arial,sans-serif);background:transparent}details{border:1px solid var(--SmartThemeBorderColor,#dce7f7);border-radius:8px;background:var(--SmartThemeBlurTintColor,#f6f9ff)}summary{cursor:pointer;padding:10px;font-weight:600}#stale{font-weight:400;opacity:.7}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:470px;overflow:auto;margin:0;padding:0 12px 12px;line-height:1.6;font-family:var(--monoFontFamily,monospace)}

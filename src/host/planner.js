@@ -1,7 +1,7 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
 import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js';
 import { resolveProfile, profileRequest } from '../planning/profiles.js';
-export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {} }) {
+export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
 const ctx = getContext;
@@ -23,7 +23,10 @@ function abortPending() { pending?.controller.abort(); }
 
 async function requestPlan(messages, config, key, signal) {
     let body;
-    if (config.profile) {
+    if (config.request) {
+        body = { ...structuredClone(config.request), messages, stream: false, max_tokens: Number(config.maxTokens) };
+        delete body.tools; delete body.tool_choice; delete body.functions; delete body.function_call;
+    } else if (config.profile) {
         const yaml = getYaml();
         body = profileRequest(config.profile, messages, config.maxTokens, text => {
             if (yaml?.parse) return yaml.parse(text);
@@ -65,28 +68,40 @@ async function onRequest(data) {
     }
     const config = structuredClone(settings());
     const original = structuredClone(data.messages);
-    const run = { controller: new AbortController(), identity: chatIdentity() };
+    const run = { controller: new AbortController(), identity: chatIdentity(), requestId: crypto.randomUUID() };
     pending = run;
     const timer = setTimeout(() => run.controller.abort(), Number(config.timeoutSeconds) * 1000);
     previewNode.value = '';
     try {
-        if (config.profileId) {
+        let contextMessages = original;
+        let prepared;
+        if (prepare) {
+            prepared = await prepare({ data: structuredClone(data), config, signal: run.controller.signal });
+            contextMessages = prepared.messages;
+            config.request = prepared.request;
+            config.profile = prepared.profile;
+            config.apiUrl = prepared.apiUrl || prepared.request?.custom_url || prepared.profile?.connection?.custom_url || 'https://api.openai.com/v1';
+            config.model = prepared.request?.model || prepared.profile?.model || prepared.model || config.model;
+        } else if (config.profileId) {
             config.profile = resolveProfile(ctx().extensionSettings, config.profileId);
             config.apiUrl = config.profile.connection.custom_url;
             config.model = config.profile.model;
         }
-        Object.assign(config, resolvePlanningTags(original, config));
+        Object.assign(config, resolvePlanningTags(contextMessages, config));
         validateSettings(config);
-        if (unresolvedBaiBaiMacros(original)) throw new Error('发现尚未展开的柏宝书宏，请检查宏设置后重试。');
+        if (unresolvedBaiBaiMacros(contextMessages)) throw new Error('发现尚未展开的柏宝书宏，请检查宏设置后重试。');
         status(`正在按 ${config.openTag}…${config.closeTag} 生成本轮规划；完成后自动继续正文…`);
-        const plan = await requestPlan(planningMessages(original, config), config, apiKey, run.controller.signal);
+        const plan = await requestPlan(planningMessages(contextMessages, config), config, apiKey, run.controller.signal);
         if (run.controller.signal.aborted || run.identity !== chatIdentity()) throw new Error('本轮已取消或聊天已切换。');
-        data.messages = writingMessages(original, plan, config);
+        // Independent mode may not rewrite any original instruction via legacy replacement rules.
+        data.messages = writingMessages(original, plan, prepare ? { ...config, rules: '[]' } : config);
+        onPlanReady({ version: 1, requestId: run.requestId, chatId: run.identity, text: plan, openTag: config.openTag, closeTag: config.closeTag, createdAt: Date.now(), generationType: data.type || 'normal', expectedMessageId: data.type === 'swipe' ? (ctx().chat?.length || 1) - 1 : (ctx().chat?.length || 0), nextWorldState: prepared?.nextWorldState });
         previewNode.value = `${config.openTag}\n${plan}\n${config.closeTag}`;
         status(`规划已注入（${plan.length} 字符），正在生成正文。`);
     } catch (error) {
         // ST's event emitter swallows thrown errors. Explicitly abort main generation.
         const wasAborted = run.controller.signal.aborted;
+        onDiscard(run.requestId);
         stopGeneration();
         status(wasAborted
             ? '规划已停止或超时；未注入。可重新发送，或选择下次跳过。'

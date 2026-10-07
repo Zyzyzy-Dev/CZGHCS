@@ -11,10 +11,14 @@ const host = `<!doctype html><html><head><meta charset="utf-8"><style>
 body{--SmartThemeBorderColor:rgb(10,20,30);--SmartThemeBlurTintColor:rgb(25,30,40);--SmartThemeBodyColor:rgb(210,220,230);--mainFontFamily:Arial;--monoFontFamily:monospace}
 input,textarea,button{font-size:55px!important;color:rgb(255,0,0)!important;background:rgb(255,255,0)!important}
 </style></head><body><div id="extensions_menu"></div><input id="outside" value="host">
-<script>const listeners={};window.saved=0;window.context={extensionSettings:{preset_compare_api_manager:{version:1,profiles:[{id:'p1',name:'测试方案',source:'custom',model:'model',secretId:'s1',connection:{custom_url:'https://example.org/v1'}}]}},eventTypes:{APP_READY:'ready',CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(n,f)=>(listeners[n]??=[]).push(f)},saveSettingsDebounced:()=>window.saved++};window.SillyTavern={getContext:()=>context};</script>
+<script>const listeners={};window.saved=0;window.context={extensionSettings:{preset_compare_api_manager:{version:1,profiles:[{id:'p1',name:'测试方案',source:'custom',model:'model',secretId:'s1',connection:{custom_url:'https://example.org/v1'}}]}},eventTypes:{APP_READY:'ready',CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat',GENERATION_ENDED:'ended',MESSAGE_RECEIVED:'received',CHARACTER_MESSAGE_RENDERED:'render',GENERATION_STARTED:'started'},eventSource:{on:(n,f)=>(listeners[n]??=[]).push(f)},saveSettingsDebounced:()=>window.saved++};const preset={prompts:[{identifier:'main',name:'写作规则',role:'system',content:'规划使用 <Think> 标签'},{identifier:'chatHistory',name:'聊天历史',marker:true}],prompt_order:[{character_id:100001,order:[{identifier:'main',enabled:true},{identifier:'chatHistory',enabled:true}]}],extensions:{baibaiToolkit:{presetPromptGroups:{groups:[{id:'g',name:'写作要求',order:0}],prompts:{main:{groupId:'g'}}}}}};Object.assign(context,{chatId:'test',chat:[],chatMetadata:{},characters:[],name1:'玩家',name2:'角色',getPresetManager:()=>({getPresetList:()=>({presets:[preset],preset_names:{'测试预设':0}}),getSelectedPresetName:()=> '测试预设'}),chatCompletionSettings:{},powerUserSettings:{},saveChat:async()=>{window.chatSaved=(window.chatSaved||0)+1},saveMetadataDebounced:()=>{},getTokenCountAsync:async t=>t.length});window.SillyTavern={getContext:()=>context};</script>
 <script type="module" src="/index.js"></script></body></html>`;
+let plannerRequest;
 const server = http.createServer(async (req,res) => {
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
+    if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>({entries:{1:{uid:1,constant:true,comment:'森林',content:'森林里住着精灵。',disable:false}}});");return;}
+    if(req.url==='/api/secrets/read'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({api_key_custom:[{id:'s1',active:true}]}));return;}
+    if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;}
     if(req.url==='/script.js'){res.setHeader('Content-Type','text/javascript');res.end('export const getRequestHeaders=()=>({});export const stopGeneration=()=>{};');return;}
     const target=path.resolve(servingRoot,'.'+decodeURIComponent(req.url.split('?')[0]));
     if(!target.startsWith(servingRoot+path.sep)){res.writeHead(403).end();return;}
@@ -25,29 +29,77 @@ let browser;
 try{
  browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE ? {executablePath:process.env.BROWSER_EXECUTABLE} : {})});
  const page=await browser.newPage({viewport:{width:1100,height:900}});
- const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Browser error:',e.message);});
  await page.goto(`http://127.0.0.1:${server.address().port}`);
  await page.locator('#czgh-planner-menu').click();
- const frame=page.frameLocator('iframe');
+ const frame=page.frameLocator('iframe[title="创作规划"]');
  await frame.getByRole('heading',{name:'创作规划'}).waitFor();
- await frame.locator('input[type=checkbox]').check();
+ await frame.getByRole('button',{name:'设置',exact:true}).click();
+ await frame.getByLabel('启用创作规划',{exact:true}).check();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.enabled===true);
  const inner=await frame.locator('input[type=text]').first().evaluate(el=>({color:getComputedStyle(el).color,size:getComputedStyle(el).fontSize,background:getComputedStyle(el).backgroundColor}));
  assert.equal(inner.color,'rgb(210, 220, 230)');assert.notEqual(inner.size,'55px');
  assert.equal(await page.locator('#outside').evaluate(el=>getComputedStyle(el).color),'rgb(255, 0, 0)');
- await frame.locator('select').first().selectOption('p1');
- await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.profileId==='p1');
- assert.equal(await frame.locator('input[type=password]').isDisabled(),true);
+ await frame.getByLabel('API 方案',{exact:true}).selectOption('external:p1');
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.apiSelection==='external:p1');
+ assert.equal(await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).isDisabled(),true);
+ await frame.getByRole('button',{name:'新建 API 方案',exact:true}).click();await frame.getByLabel('方案名称',{exact:true}).fill('独立 API');await frame.getByRole('button',{name:'保存',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.api.length===1);
+ assert.equal(await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).isDisabled(),false);
+ assert.equal(await page.evaluate(()=>context.extensionSettings.preset_compare_api_manager.profiles[0].name),'测试方案');
+ await frame.getByRole('button',{name:'删除 API 方案',exact:true}).click();await frame.getByRole('button',{name:'删除',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.api.length===0);
  await page.evaluate(()=>document.body.style.setProperty('--SmartThemeBodyColor','rgb(180,190,200)'));
  await page.waitForTimeout(1100);
- assert.equal(await frame.locator('input[type=text]').first().evaluate(el=>getComputedStyle(el).color),'rgb(180, 190, 200)');
+ assert.equal(await frame.getByLabel('URL',{exact:true}).evaluate(el=>getComputedStyle(el).color),'rgb(180, 190, 200)');
+ if(process.env.SCREENSHOT_DIR){await frame.getByRole('button',{name:'切换外观',exact:true}).click();await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.appearance==='light');await frame.locator('html[data-appearance=light]').waitFor();assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(252, 253, 255)');await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'settings-light.png')});}
+ await frame.getByRole('button',{name:'返回',exact:true}).click();
+ if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'preset-light.png')});
+ await frame.getByRole('button',{name:'查看 写作规则',exact:true}).click();
+ await frame.locator('.entry-content').waitFor();assert.match(await frame.locator('.entry-content').textContent(),/Think/);
+ await frame.getByRole('button',{name:'关闭详情',exact:true}).click();
+ await frame.getByLabel('写作规则',{exact:true}).uncheck();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.promptOverrides.main===false);
+ await frame.getByRole('tab',{name:'世界书',exact:true}).click();
+ await frame.getByRole('button',{name:'查看 森林',exact:true}).click();assert.equal(await frame.locator('.entry-content').textContent(),'森林里住着精灵。');
+ await frame.getByRole('button',{name:'关闭详情',exact:true}).click();
+ await frame.getByRole('button',{name:'新建方案',exact:true}).click();await frame.getByLabel('方案名称',{exact:true}).fill('测试方案');await frame.getByRole('button',{name:'保存',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.world.length===1);
+ assert.ok(await frame.getByLabel('世界书方案',{exact:true}).inputValue());
+ await frame.getByRole('button',{name:'删除方案',exact:true}).click();await frame.getByRole('button',{name:'删除',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.world.length===0);
+ assert.equal(await frame.getByRole('button',{name:'覆盖方案',exact:true}).isDisabled(),true);
  if (process.env.SCREENSHOT_DIR) await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'iframe-desktop.png')});
  await page.setViewportSize({width:390,height:844});
  if (process.env.SCREENSHOT_DIR) await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'iframe-mobile.png')});
- const bounds=await page.locator('iframe').boundingBox();assert.ok(bounds.width<=390);
+ const bounds=await page.locator('iframe[title="创作规划"]').boundingBox();assert.ok(bounds.width<=390);
  await frame.getByRole('button',{name:'关闭',exact:true}).click();
  await page.waitForFunction(()=>!document.querySelector('dialog').open);
  assert.equal(await page.locator('dialog').evaluate(el=>el.open),false);
+ const generated=await page.evaluate(async()=>{
+ const settings=context.extensionSettings.czgh_external_planner;settings.displayPlan=true;settings.apiSelection='external:p1';settings.selection.promptOverrides.main=true;
+ context.chat=[{is_user:true,mes:'真实用户输入'}];
+ for(const fn of listeners.started||[])await fn('normal');
+ const data={type:'normal',messages:[{role:'system',content:'只属于正文的系统指令'},{role:'user',content:'真实用户输入'}]};
+ for(const fn of listeners.request||[])await fn(data);
+ for(const fn of listeners.ended||[])await fn();
+ context.chat.push({mes:'正文',swipe_id:0,extra:{},swipe_info:[{extra:{}}]});
+ const mes=document.createElement('div');mes.className='mes';mes.setAttribute('mesid','1');const block=document.createElement('div');block.className='mes_block';mes.append(block);document.body.append(mes);
+ for(const fn of listeners.received||[])await fn(1,'normal');
+ return {data,record:context.chat[1].extra.czghCreativePlanning?.[0],saved:window.chatSaved};
+ });
+ assert.match(generated.data.messages.at(-1).content,/本轮测试规划/);
+ assert.equal(generated.data.messages[0].content,'只属于正文的系统指令');
+ assert.equal(generated.record.text,'本轮测试规划');assert.ok(generated.saved>0);
+ assert.ok(!JSON.stringify(plannerRequest.messages).includes('只属于正文的系统指令'));
+ assert.ok(JSON.stringify(plannerRequest.messages).includes('真实用户输入'));
+ const floor=page.frameLocator('iframe[title="本楼创作规划"]');await floor.locator('summary').click();
+ assert.match(await floor.locator('pre').textContent(),/本轮测试规划/);
+ await page.evaluate(async()=>{context.chat[1].extra.czghCreativePlanning[0].text='<script>window.bad=1</script>';for(const fn of listeners.render||[])await fn(1);});
+ await floor.getByText('<script>window.bad=1</script>',{exact:false}).waitFor();
+ assert.equal(await floor.locator('body').evaluate(()=>window.bad),undefined);
+ assert.equal(await page.evaluate(()=>context.chat[1].mes),'正文');
+ await page.waitForFunction(()=>document.querySelector('iframe[title="本楼创作规划"]').getBoundingClientRect().height>42);
  assert.deepEqual(errors,[]);
  console.log('PASS browser: iframe CSS isolation, five-token theme update, settings bridge, API selection, close, mobile bounds; no page errors.');
 }finally{await browser?.close();server.close();}

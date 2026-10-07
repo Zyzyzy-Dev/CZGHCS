@@ -1,0 +1,117 @@
+/* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
+import { migrateSchemes, applySchemeOperation, assertSafeData } from '../planning/schemes.js';
+import { createApiSchemes } from './api-schemes.js';
+import { captureSources } from './sources.js';
+import { resolvePreset } from '../planning/presets.js';
+import { adapters } from '../planning/compatibility.js';
+import { buildPlanningContext } from '../planning/context.js';
+import { cleanSettings } from '../bridge/protocol.js';
+import { materializePluginMacros } from './plugin-macros.js';
+import { freezeCurrentRequest } from '../planning/current-request.js';
+const ID = 'czgh_external_planner';
+export function createWorkbench({ context, headers }) {
+    let source;
+    const read = () => migrateSchemes(context().extensionSettings[ID]);
+    const write = async value => { context().extensionSettings[ID] = value; context().saveSettingsDebounced(); };
+    const external = () => {
+        const store = context().extensionSettings.preset_compare_api_manager;
+        if (store && (store.version !== 1 || !Array.isArray(store.profiles))) throw new Error('外部 API 方案格式不受支持。');
+        return store?.profiles || [];
+    };
+    async function current() {
+        const c = context().chatCompletionSettings;
+        if (!c || c.chat_completion_source !== 'custom') throw new Error('当前连接无法复制为兼容 API 方案，请使用预设编辑器方案或手动填写。');
+        const response = await fetch('/api/secrets/read', { method: 'POST', headers: headers(), body: '{}' });
+        if (!response.ok) throw new Error('无法读取密钥引用。');
+        const secretId = (await response.json()).api_key_custom?.find(x => x.active)?.id;
+        return { source: 'custom', model: c.custom_model, connection: { custom_url: c.custom_url }, secretId };
+    }
+    const api = createApiSchemes({ read, write, external, current, models: async config => {
+        const response = await fetch('/api/backends/chat-completions/status', { method: 'POST', headers: headers(), body: JSON.stringify({ chat_completion_source: 'custom', custom_url: config.connection?.custom_url || config.apiUrl, secret_id: config.secretId }) });
+        if (!response.ok) throw new Error('模型拉取失败，可手动输入模型名称。');
+        const data = await response.json();
+        if (!Array.isArray(data.data)) throw new Error('API 没有返回模型列表，可手动输入。');
+        return data.data.map(x => x.id).filter(x => typeof x === 'string');
+    } });
+    async function capture(signal, extraBooks) {
+        const world = await import('/scripts/world-info.js');
+        const c = context();
+        const manager = c.getPresetManager?.('openai') || (await import('/scripts/preset-manager.js')).getPresetManager('openai');
+        return captureSources({ context, world, manager, openai: { oai_settings: c.chatCompletionSettings }, powerUser: c.powerUserSettings, baiBai: globalThis.STBaiBaiBook }, { signal, extraBooks });
+    }
+    async function snapshot(refresh = false) {
+        const settings = read();
+        if (!source || refresh) source = await capture(undefined, settings.selection.extraBooks);
+        let preset = null, error = '';
+        try { preset = resolvePreset(source, settings.selection); } catch (e) { error = e.message; }
+        return { settings, profiles: await api.list(), presets: Object.keys(source.presets), preset, books: source.books, bookNames: source.bookNames, bindings: source.bindings, error,
+            compatibility: adapters.map(a => ({ id: a.id, name: a.name, category: a.category, status: a.slots.some(key => source.injections[key]?.value) ? '本轮有注入' : '暂无注入' })) };
+    }
+    return {
+        snapshot,
+        async execute(method, payload = {}) {
+            const state = read();
+            if (method === 'state.read' || method === 'sources.refresh') return snapshot(true);
+            if (method === 'settings.update') {
+                Object.assign(state, cleanSettings(payload));
+                if (typeof payload.displayPlan === 'boolean') state.displayPlan = payload.displayPlan;
+                if (['auto','light','dark'].includes(payload.appearance)) state.appearance = payload.appearance;
+                if (typeof payload.apiSelection === 'string' && (await api.list()).some(p => p.id === payload.apiSelection)) state.apiSelection = payload.apiSelection;
+                await write(state);
+            } else if (method === 'selection.update') {
+                assertSafeData(payload);
+                for (const key of ['promptOverrides','groupOverrides','bookOverrides','entryOverrides']) if (payload[key] && typeof payload[key] === 'object' && !Array.isArray(payload[key])) {
+                    if (Object.values(payload[key]).some(v => typeof v !== 'boolean')) throw new Error('开关值必须为布尔值。');
+                    state.selection[key] = structuredClone(payload[key]);
+                }
+                if (typeof payload.presetId === 'string') state.selection.presetId = payload.presetId;
+                for (const key of ['extraBooks','compatibilityIds']) if (Array.isArray(payload[key]) && payload[key].every(v => typeof v === 'string')) state.selection[key] = [...new Set(payload[key])];
+                await write(state); source = null;
+            } else if (method === 'api.save') {
+                let base = {};
+                if (payload.sourceId) base = await api.resolve(payload.sourceId);
+                const config = { ...base, source: 'custom', model: payload.model || base.model || '', connection: { custom_url: payload.apiUrl || base.connection?.custom_url || '' } };
+                const url = new URL(config.connection.custom_url);
+                if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请填写有效的 HTTP(S) 基础地址。');
+                await api.save({ id: payload.id, name: payload.name, config, key: payload.key });
+            } else if (method === 'api.remove') await api.remove(payload.id);
+            else if (method === 'api.models') return api.models(await api.resolve(state.apiSelection));
+            else if (method === 'scheme.save') {
+                if (!['preset','world'].includes(payload.kind)) throw new Error('无效方案类型。');
+                const keys = payload.kind === 'preset' ? ['presetId','promptOverrides','groupOverrides'] : ['bookOverrides','entryOverrides','extraBooks'];
+                if (payload.applyId) {
+                    const item = state.schemes[payload.kind].find(s => s.id === payload.applyId);
+                    if (!item) throw new Error('方案已不存在。');
+                    for (const key of keys) state.selection[key] = structuredClone(item.payload[key]);
+                    await write(state); source = null;
+                } else await write(applySchemeOperation(state, { kind: payload.kind, operation: payload.id ? 'overwrite' : 'create', id: payload.id, name: payload.name, payload: Object.fromEntries(keys.map(k => [k, state.selection[k]])) }));
+            } else if (method === 'scheme.remove') await write(applySchemeOperation(state, { kind: payload.kind, operation: 'delete', id: payload.id }));
+            return snapshot();
+        },
+        async prepare({ data, config, signal }) {
+            const state = migrateSchemes(config);
+            let currentRequest;
+            if(state.apiSelection==='current'){
+                const response=await fetch('/api/secrets/read',{method:'POST',headers:headers(),body:'{}',signal});
+                if(!response.ok)throw Error('无法冻结当前连接的密钥引用。');
+                currentRequest=freezeCurrentRequest(data,await response.json(),text=>globalThis.SillyTavern.libs?.yaml?.parse?.(text)??JSON.parse(text));
+            }
+            const frozen = await capture(signal, state.selection.extraBooks);
+            const snapshotData = await materializePluginMacros(frozen,state.selection,globalThis.STBaiBaiBook);
+            const selectedPreset=snapshotData.presets[state.selection.presetId||snapshotData.currentPreset];
+            snapshotData.maxContext=Number(selectedPreset?.openai_max_context)||snapshotData.maxContext;
+            snapshotData.inputBudget=snapshotData.maxContext-Number(config.maxTokens);
+            if(snapshotData.inputBudget<=0)throw new Error('规划最大输出已超过所选预设的上下文额度。');
+            snapshotData.trigger = data.type || 'normal';
+            if (['regenerate','swipe'].includes(data.type) && snapshotData.history.at(-1)?.role === 'assistant') snapshotData.history.pop();
+            const built = await buildPlanningContext({ snapshot: snapshotData, selection: state.selection, worldState: context().chatMetadata?.czghCreativePlanningWorld || {}, tokenize: text => context().getTokenCountAsync(text) });
+            signal.throwIfAborted();
+            if (state.apiSelection === 'current') {
+                return { ...built, request: currentRequest };
+            }
+            const profile = await api.resolve(state.apiSelection);
+            if (!profile.secretId) throw new Error('此方案尚无可用密钥引用，请选择已保存的 API 方案。');
+            return { ...built, profile };
+        },
+    };
+}

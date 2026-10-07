@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { captureSources } from '../src/host/sources.js';
+test('source capture clones inputs, includes auxiliary/chat books and rejects a switched chat',async()=>{
+    const ctx={chatId:'chat',characterId:0,characters:[{avatar:'c.png',name:'角色',data:{extensions:{world:'primary'}}}],chat:[{is_user:true,mes:'hello'}],chatMetadata:{world_info:'chatbook'},extensionPrompts:{foreign:{value:'secret',filter:()=>true}},name1:'玩家',name2:'角色'};
+    const world={world_names:['primary','aux','global','chatbook'],selected_world_info:['global'],world_info:{charLore:[{name:'c',extraBooks:['aux']}]},getWorldInfoSettings:()=>({}),loadWorldInfo:async()=>({entries:{}})};
+    const manager={getPresetList:()=>({presets:[{prompts:[],prompt_order:[]}],preset_names:{P:0}}),getSelectedPresetName:()=> 'P'};
+    const host={context:()=>ctx,world,manager,openai:{oai_settings:{prompts:[],prompt_order:[],active:true}},powerUser:{}};
+    const s=await captureSources(host,{});
+    assert.deepEqual(s.bindings,{global:['global'],character:['primary','aux'],chat:['chatbook'],persona:[]});
+    assert.equal(s.history[0].content,'hello');
+    assert.ok(Object.isFrozen(s));
+    assert.equal(s.presets.P.active,true);
+    assert.equal(s.macroEnvironment.lastusermessage,'hello');
+    ctx.maxContext=2048;ctx.chatCompletionSettings={openai_max_context:32000};
+    assert.equal((await captureSources(host,{})).maxContext,32000);
+    ctx.chat[0].mes='changed'; assert.equal(s.history[0].content,'hello');
+    world.loadWorldInfo=async()=>{ctx.chatId='another';return{entries:{}};};
+    await assert.rejects(captureSources(host,{}),/聊天/);
+});
