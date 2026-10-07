@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { listProfiles, resolveProfile, profileRequest } from './profiles.js';
+import { listProfiles, resolveProfile, profileRequest } from '../src/planning/profiles.js';
 const profile = { id: 'one', name: '规划方案', source: 'custom', model: 'planner', secretId: 'key-one', connection: { custom_url: 'https://example.org/v1' }, additional: { custom_include_body: '{"temperature":0.7}', custom_exclude_body: '[]', custom_include_headers: '{"X-Test":"yes"}' } };
 const settings = () => ({ preset_compare_api_manager: { version: 1, profiles: [structuredClone(profile)] } });
 test('list safe profile metadata; resolve selected profile without modifying provider store', () => {

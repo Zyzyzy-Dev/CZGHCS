@@ -1,3 +1,4 @@
+/* 规划标签识别、提示构建、结果校验和配置迁移。 */
 export const defaults = Object.freeze({
     enabled: false,
     apiUrl: '',

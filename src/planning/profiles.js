@@ -1,3 +1,4 @@
+/* 读取 API 方案并构建独立请求；不修改酒馆活动连接。 */
 const STORE = 'preset_compare_api_manager';
 function profiles(settings) {
     const store = settings[STORE];

@@ -4,9 +4,8 @@
   "requires": [],
   "optional": [],
   "js": "index.js",
-  "css": "style.css",
   "author": "Zyzyzy-Dev",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "homePage": "https://github.com/Zyzyzy-Dev/CZGHCS",
   "auto_update": false
 }

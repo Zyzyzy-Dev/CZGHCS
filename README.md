@@ -2,7 +2,7 @@
 
 独立 API 根据酒馆当前完整请求生成写作规划，再把规划注入本轮正文请求。规划不写入聊天楼层。正文保留原预设要求的状态栏、顶栏、时间戳、摘要及其他附加内容；不会统一禁止状态栏。
 
-当前为 0.2.0 测试版，已核对 SillyTavern 1.18.0 的请求事件和上下文设置接口，尚未在用户酒馆完成本次更新的真实 API 联调，不作为正式版发布。
+当前为 0.3.0 测试版，UI 已迁入独立 iframe，已核对 SillyTavern 1.18.0 的请求事件和上下文设置接口，尚未在用户酒馆完成本次更新的真实 API 联调，不作为正式版发布。
 
 ## 安装和使用
 
@@ -53,3 +53,28 @@
 `npm test` 执行无网络单元和事件集成测试，`npm run check` 检查语法。测试仓库用于开发和验证，正式仓库 CZGH 尚未写入。
 
 0.2.0 将酒馆显示名、魔法棒菜单、窗口和仓库项目名称统一为「创作规划」。仓库地址 CZGHCS / CZGH、内部设置键保持不变，保留升级前的设置及更新路径。
+
+## 0.3.0 文件结构与 iframe 隔离
+
+```text
+index.js                  只加载 src/host/index.js
+manifest.json             酒馆插件清单，不向主页面加载 CSS
+src/
+  host/index.js           菜单、容器、消息桥、主题同步
+  host/planner.js         酒馆生成事件、独立 API、取消与状态
+  planning/core.js        规划标签、提示与校验
+  planning/profiles.js    API 方案读取与独立请求
+  bridge/protocol.js      消息校验、设置与主题白名单
+  ui/index.html           iframe 独立 document
+  ui/app.js               iframe UI 和消息交互
+  ui/style.css            独立 CSS
+tests/                    Node 测试，不被插件导入
+```
+
+所有 src 文件开头注明用途，JS 通过 import/export 连接。UI 不读取主页面 DOM 或调用酒馆 API；由 postMessage 传递设置、操作和规划结果。两端验证 origin、source 和频道，主页面只接受白名单设置。现有设置继续保留，方案密钥不传入 iframe，手动填写的密钥仅在运行内存中使用。
+
+仅同步 `--SmartThemeBorderColor`、`--SmartThemeBlurTintColor`、`--SmartThemeBodyColor`、`--mainFontFamily`、`--monoFontFamily`。窗口打开期间跟随这些值更新；其余尺寸、间距、控件样式由 iframe 自己定义。不复制宿主样式表，不引入酒馆 CSS 类。主页面只保留菜单及容器定位/尺寸样式。
+
+这是 CSS/document 隔离，不是对同源恶意 JavaScript 的安全沙箱。其他插件若主动操作 iframe，或修改承载容器，仍可能影响它。
+
+浏览器回归测试使用本地模拟宿主，验证双向样式隔离、主题更新、消息设置、API 方案选择和移动端窗口尺寸；不请求真实 API。运行方式见 tests/README.md。

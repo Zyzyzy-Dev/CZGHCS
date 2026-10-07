@@ -1,8 +1,11 @@
 {
   "name": "czgh-creative-planning",
   "description": "创作规划：为酒馆独立生成并注入写作规划",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test", "check": "node --check index.js && node --check core.js && node --check profiles.js" }
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check index.js && node --check src/host/index.js && node --check src/host/planner.js && node --check src/ui/app.js"
+  }
 }

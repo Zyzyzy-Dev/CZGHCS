@@ -39,18 +39,9 @@ test('request hook: inject only after success, preserve panels, abort on error/c
         return { ok: true, json: async () => ({ choices: [{ message: { content: '<Abstract>已完成计划</Abstract>' }, finish_reason: 'stop' }] }) };
     };
     try {
-        const source = (await readFile(new URL('./index.js', import.meta.url), 'utf8'))
-            .replace("import { getRequestHeaders, stopGeneration } from '/script.js';", 'const { getRequestHeaders, stopGeneration } = globalThis.__czghTestHost;')
-            .replace("from './core.js'", `from '${new URL('./core.js', import.meta.url).href}'`)
-            .replace("from './profiles.js'", `from '${new URL('./profiles.js', import.meta.url).href}'`);
-        await import(`data:text/javascript;base64,${Buffer.from(source + '\n//# sourceURL=czgh-runtime-under-test.js').toString('base64')}`);
-        const menu = elements.find(e => e.id === 'czgh-planner-menu');
-        assert.ok(menu, 'magic wand entry exists without settings panel');
-        menu.handlers.click();
-        const dialog = elements.find(e => e.id === 'czgh_external_planner');
-        assert.equal(dialog.open, true);
-        elements.find(e => e.textContent === '关闭').handlers.click();
-        assert.equal(dialog.open, false);
+        const { createPlanner } = await import('../src/host/planner.js');
+        let view = {};
+        const planner = createPlanner({getContext: () => c, ...globalThis.__czghTestHost, onState: s => {view=s;}});
         const config = c.extensionSettings.czgh_external_planner;
         Object.assign(config, { enabled: true, apiUrl: 'https://example.org/v1', model: 'p' });
         const messages = [{ role: 'system', content: '<Abstract>写作准备</Abstract>；展开的记忆；生成状态栏' }, { role: 'user', content: '用户输入' }];
@@ -75,13 +66,13 @@ test('request hook: inject only after success, preserve panels, abort on error/c
         const switched = { type: 'normal', messages: [{ role: 'system', content: '<Think>思维链</Think>，随后生成正文和状态栏' }] };
         await emit(events.CHAT_COMPLETION_SETTINGS_READY, switched);
         assert.match(switched.messages.at(-1).content, /<Think>\n切换后的计划\n<\/Think>/);
-        assert.match(elements.find(e => e.readOnly).value, /^<Think>/);
+        assert.match(view.preview, /^<Think>/);
 
         globalThis.fetch = async () => { throw new Error('ambiguous tags must not reach API'); };
         const ambiguous = { type: 'normal', messages: [{ role: 'system', content: '<Think>思维链</Think>\n<Abstract>写作准备</Abstract>' }] };
         await emit(events.CHAT_COMPLETION_SETTINGS_READY, ambiguous);
         assert.equal(ambiguous.messages.length, 1);
-        assert.ok(elements.some(e => typeof e.textContent === 'string' && e.textContent.includes('多个可能的规划标签')));
+        assert.match(view.status, /多个可能的规划标签/);
 
         globalThis.fetch = async () => ({ ok: false, status: 503 });
         const failed = { type: 'swipe', messages: structuredClone(messages) };
@@ -98,11 +89,9 @@ test('request hook: inject only after success, preserve panels, abort on error/c
         await emit(events.CHAT_CHANGED);
         await running;
         assert.deepEqual(cancelled.messages, messages);
-        const preview = elements.find(e => e.readOnly);
-        assert.equal(preview.value, '');
+        assert.equal(view.preview, '');
 
-        const skip = elements.find(e => e.textContent === '下次跳过规划 / 撤销跳过');
-        skip.handlers.click();
+        planner.skip();
         globalThis.fetch = async () => { throw new Error('should not call'); };
         const skipped = { type: 'normal', messages: structuredClone(messages) };
         const previousStops = stopped;
@@ -113,10 +102,7 @@ test('request hook: inject only after success, preserve panels, abort on error/c
         const profile = { id: 'saved', name: '已保存规划 API', source: 'custom', model: 'profile-model', secretId: 'profile-secret', connection: { custom_url: 'https://profile.example/v1' } };
         c.extensionSettings.preset_compare_api_manager = { version: 1, profiles: [profile] };
         const storeBefore = structuredClone(c.extensionSettings.preset_compare_api_manager);
-        elements.find(e => e.textContent === '刷新 API 方案').handlers.click();
-        const profileSelect = elements.find(e => e.id === 'czgh-profile-select');
-        assert.ok(profileSelect.children.some(e => e.textContent === profile.name));
-        profileSelect.value = 'saved'; profileSelect.handlers.change();
+        config.profileId = 'saved';
         globalThis.fetch = async (url, options) => {
             if (url === '/api/secrets/read') return { ok: true, json: async () => ({ api_key_custom: [{ id: 'other', active: true }, { id: 'profile-secret', active: false }] }) };
             const body = JSON.parse(options.body);
@@ -139,9 +125,7 @@ test('request hook: inject only after success, preserve panels, abort on error/c
         await emit(events.CHAT_COMPLETION_SETTINGS_READY, missingKey);
         assert.equal(generationCalls, 0); assert.deepEqual(missingKey.messages, messages);
         c.extensionSettings.preset_compare_api_manager.profiles = [];
-        elements.find(e => e.textContent === '刷新 API 方案').handlers.click();
         assert.equal(config.profileId, 'saved'); // no silent fallback
-        assert.ok(profileSelect.children.some(e => e.textContent.includes('已不存在')));
         globalThis.fetch = async () => { throw new Error('deleted profile must not call API'); };
         const deleted = { type: 'normal', messages: structuredClone(messages) };
         await emit(events.CHAT_COMPLETION_SETTINGS_READY, deleted);

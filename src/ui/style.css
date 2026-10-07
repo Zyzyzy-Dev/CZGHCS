@@ -1,0 +1,23 @@
+/* iframe 独立样式：只使用宿主传来的三种颜色和两种字体，其余布局样式完全自有。 */
+:root { color-scheme: dark; --SmartThemeBorderColor:#58616d; --SmartThemeBlurTintColor:#202630; --SmartThemeBodyColor:#edf0f5; --mainFontFamily:system-ui,sans-serif; --monoFontFamily:monospace; }
+* { box-sizing:border-box; }
+html { height:100%; background:var(--SmartThemeBlurTintColor); color:var(--SmartThemeBodyColor); font-family:var(--mainFontFamily); }
+body { margin:0; min-height:100%; padding:20px; border:1px solid var(--SmartThemeBorderColor); border-radius:12px; }
+header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+h1 { font-size:22px; margin:0; }
+h2 { font-size:16px; margin:22px 0 10px; }
+p { line-height:1.6; overflow-wrap:anywhere; font-size:14px; }
+label { display:block; margin:12px 0; font-size:14px; }
+label span { display:block; margin-bottom:6px; }
+input:not([type=checkbox]),select,textarea { display:block; width:100%; border:1px solid var(--SmartThemeBorderColor); border-radius:7px; padding:10px; background:var(--SmartThemeBlurTintColor); color:var(--SmartThemeBodyColor); font:inherit; }
+input[type=checkbox] { margin-right:8px; }
+textarea { min-height:90px; resize:vertical; line-height:1.5; }
+#preview { min-height:180px; font-family:var(--monoFontFamily); }
+button { padding:8px 13px; border:1px solid var(--SmartThemeBorderColor); border-radius:7px; background:transparent; color:var(--SmartThemeBodyColor); font:inherit; cursor:pointer; }
+button:hover { background:#8882; }
+:focus-visible { outline:2px solid var(--SmartThemeBodyColor); outline-offset:2px; }
+:disabled { opacity:.5; cursor:not-allowed; }
+.actions { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+details { margin:18px 0; }
+summary { cursor:pointer; }
+@media(max-width:480px) { body { padding:14px; } h1 { font-size:19px; } }
