@@ -1,0 +1,50 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { defaults, extractPlan, planningMessages, writingMessages, eligibleRequest, unresolvedBaiBaiMacros, validateSettings } from './core.js';
+
+const config = { ...defaults, apiUrl: 'https://example.org/v1', model: 'planner' };
+test('both stages preserve expanded memory, worldbook, history and multimodal input without mutation', () => {
+    const original = [{ role: 'system', content: '世界书\n柏宝书记忆：已展开' }, { role: 'user', content: [{ type: 'text', text: '用户本轮输入' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AA==' } }] }];
+    const snapshot = structuredClone(original);
+    const planner = planningMessages(original, config);
+    const writer = writingMessages(original, '本轮安排', config);
+    assert.deepEqual(planner.slice(0, -1), snapshot);
+    assert.deepEqual(writer.slice(0, -1), snapshot);
+    planner[0].content = 'changed';
+    assert.deepEqual(original, snapshot);
+    assert.match(writer.at(-1).content, /状态栏/);
+    assert.match(writer.at(-1).content, /原本要求生成的照常生成/);
+});
+test('exact adapter edits instructions but never history/user input', () => {
+    const messages = ['system', 'developer', 'user', 'assistant'].map(role => ({ role, content: '先输出规划；再生成状态栏' }));
+    const out = writingMessages(messages, '计划', { ...config, rules: JSON.stringify([{ find: '先输出规划', replace: '规划已完成' }]) });
+    assert.match(out[0].content, /规划已完成；再生成状态栏/);
+    assert.match(out[1].content, /规划已完成/);
+    assert.equal(out[2].content, messages[2].content);
+    assert.equal(out[3].content, messages[3].content);
+});
+test('custom delimiters work without regex assumptions', () => {
+    assert.equal(extractPlan(' [plan+]内容[/plan+] ', { ...config, openTag: '[plan+]', closeTag: '[/plan+]' }, 'stop'), '内容');
+});
+test('incomplete, duplicate, empty, truncated or leaked-body plans cannot be injected', () => {
+    for (const text of ['', '<Abstract>x', '<Abstract></Abstract>', '<Abstract>x<Abstract>y</Abstract>', '<Abstract>x</Abstract>正文', '前言<Abstract>x</Abstract>']) {
+        assert.throws(() => extractPlan(text, config, 'stop'));
+    }
+    assert.throws(() => extractPlan('<Abstract>完整外观</Abstract>', config, 'length'));
+});
+test('quiet, impersonation, continuation and tool rounds never invoke planner', () => {
+    const messages = [{ role: 'user', content: 'test' }];
+    for (const type of ['quiet', 'impersonate', 'continue']) assert.equal(eligibleRequest({ type, messages }), false);
+    for (const type of [undefined, 'normal', 'regenerate', 'swipe']) assert.equal(eligibleRequest({ type, messages }), true);
+    assert.equal(eligibleRequest({ messages: [{ role: 'tool', content: 'x' }] }), false);
+});
+test('detect unresolved BaiBai macros including parameterized form', () => {
+    for (const content of ['{{bbsVars}}', '{{bbsSnapshot::42::after}}']) assert.equal(unresolvedBaiBaiMacros([{ content }]), true);
+    assert.equal(unresolvedBaiBaiMacros([{ content: '柏宝书记忆已展开' }]), false);
+});
+test('invalid settings fail before a request', () => {
+    validateSettings(config);
+    for (const change of [{ apiUrl: 'file:///tmp/a' }, { apiUrl: 'https://key:secret@example.org' }, { maxTokens: -1 }, { rules: '[{"find":"","replace":""}]' }, { openTag: '</Abstract>' }]) {
+        assert.throws(() => validateSettings({ ...config, ...change }));
+    }
+});

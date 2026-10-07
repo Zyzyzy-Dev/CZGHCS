@@ -1,0 +1,11 @@
+{
+  "display_name": "外置写作规划 · 测试版",
+  "loading_order": 200,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "author": "Zyzyzy-Dev",
+  "version": "0.1.0",
+  "homePage": "https://github.com/Zyzyzy-Dev/CZGHCS",
+  "auto_update": false
+}
