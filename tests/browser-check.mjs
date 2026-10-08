@@ -16,7 +16,7 @@ input,textarea,button{font-size:55px!important;color:rgb(255,0,0)!important;back
 let plannerRequest;
 const server = http.createServer(async (req,res) => {
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
-    if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>({entries:{1:{uid:1,constant:true,comment:'森林',content:'森林里住着精灵。',disable:false}}});");return;}
+    if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>{if(window.testSourceGate){window.sourceWaiting=true;await window.testSourceGate;}return {entries:{1:{uid:1,constant:true,comment:'森林',content:'森林里住着精灵。',disable:false}}};};");return;}
     if(req.url==='/api/secrets/read'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({api_key_custom:[{id:'s1',active:true}]}));return;}
     if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;}
     if(req.url==='/script.js'){res.setHeader('Content-Type','text/javascript');res.end('export const getRequestHeaders=()=>({});export const stopGeneration=()=>{};export const saveSettings=async()=>{window.saved++;localStorage.setItem("test-settings",JSON.stringify(window.context.extensionSettings));};');return;}
@@ -29,11 +29,21 @@ let browser;
 try{
  browser=await chromium.launch({headless:true,...(process.env.BROWSER_EXECUTABLE ? {executablePath:process.env.BROWSER_EXECUTABLE} : {})});
  const page=await browser.newPage({viewport:{width:1100,height:900}});
+ await page.addInitScript(()=>Object.defineProperty(Crypto.prototype,'randomUUID',{value:undefined,configurable:true}));
  const errors=[];page.on('pageerror',e=>{errors.push(e.message);console.error('Browser error:',e.message);});
  await page.goto(`http://127.0.0.1:${server.address().port}`);
  await page.locator('#czgh-planner-menu').click();
  const frame=page.frameLocator('iframe[title="创作规划"]');
  await frame.getByRole('heading',{name:'创作规划'}).waitFor();
+ await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
+ // A stuck source read must never block closing the panel.
+ await page.evaluate(()=>{window.testSourceGate=new Promise(resolve=>window.releaseSource=resolve);});
+ await frame.getByRole('button',{name:'刷新资料',exact:true}).click();
+ await page.waitForFunction(()=>window.sourceWaiting===true);
+ await frame.getByRole('button',{name:'关闭',exact:true}).click();
+ await page.waitForFunction(()=>!document.querySelector('#czgh-planner-container').open,{},{timeout:2000});
+ await page.evaluate(()=>{window.releaseSource();window.testSourceGate=null;});
+ await page.locator('#czgh-planner-menu').click();
  await frame.getByRole('button',{name:'设置',exact:true}).click();
  await frame.getByLabel('启用创作规划',{exact:true}).check();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.enabled===true);

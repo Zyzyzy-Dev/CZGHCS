@@ -14,9 +14,9 @@ function init(){
     if(initialized)return;
     const menu=document.querySelector('#extensions_menu')||document.querySelector('#extensionsMenu');if(!menu)return;initialized=true;
     const dialog=document.createElement('dialog');dialog.id='czgh-planner-container';dialog.setAttribute('aria-label','创作规划');
-    for(const [key,value] of Object.entries({padding:'0',margin:'auto',border:'0',background:'transparent',width:'min(460px,96vw)',height:'min(840px,92dvh)','max-width':'96vw','max-height':'92dvh',overflow:'hidden','box-shadow':'none',transform:'none'}))dialog.style.setProperty(key,value,'important');
+    for(const [key,value] of Object.entries({padding:'0',margin:'auto',border:'0',background:'transparent',width:'min(460px,96vw)',height:'min(840px,92dvh)','max-width':'96vw','max-height':'92dvh',overflow:'hidden','box-shadow':'0 24px 80px #101d3540, 0 4px 16px #101d351f','border-radius':'24px',transform:'none'}))dialog.style.setProperty(key,value,'important');
     const frame=document.createElement('iframe');frame.title='创作规划';frame.src=new URL('../ui/index.html',import.meta.url).href;
-    frame.style.cssText='display:block!important;width:100%!important;height:100%!important;border:0!important;margin:0!important;padding:0!important;background:transparent!important;';dialog.append(frame);document.body.append(dialog);
+    frame.style.cssText='display:block!important;width:100%!important;height:100%!important;border:0!important;margin:0!important;padding:0!important;background:transparent!important;border-radius:24px!important;';dialog.append(frame);document.body.append(dialog);
     const send=(type,payload)=>frame.contentWindow?.postMessage({channel:CHANNEL,type,payload},location.origin);
     const theme=()=>themeSnapshot(getComputedStyle(document.body));
     const workbench=createWorkbench({context:ctx,headers:getRequestHeaders,saveSettings});
@@ -39,6 +39,8 @@ function init(){
     ctx().extensionSettings[ID]=migrateSchemes(ctx().extensionSettings[ID]);
     let rpcQueue=Promise.resolve();
     window.addEventListener('message',event=>{
+        // Closing must not wait for source loading or any pending RPC operation.
+        if(acceptsMessage(event,frame.contentWindow,location.origin)&&event.data.type==='close'){dialog.close();return;}
         for(const item of panelFrames.values())if(acceptsMessage(event,item.frame.contentWindow,location.origin)&&event.data.type==='height'){
             const height=Number(event.data.payload);if(Number.isFinite(height))item.frame.style.setProperty('height',`${Math.min(560,Math.max(42,height))}px`,'important');return;
         }

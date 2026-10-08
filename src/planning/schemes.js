@@ -1,4 +1,5 @@
 /* 独立方案存储：迁移旧设置、校验可持久化数据，以副本执行增删改。 */
+import { createId } from '../bridge/id.js';
 const KINDS = ['api', 'preset', 'world'];
 export function assertSafeData(value) {
     if (!value || typeof value !== 'object') return;
@@ -31,7 +32,7 @@ export function applySchemeOperation(state, { kind, operation, id, name, payload
     else {
         if (typeof name !== 'string' || !name.trim() || name.length > 100) throw new Error('请输入不超过 100 字的方案名称。');
         assertSafeData(payload);
-        const item = { id: operation === 'create' ? crypto.randomUUID() : id, name: name.trim(), kind, payload: structuredClone(payload), updatedAt: Date.now() };
+        const item = { id: operation === 'create' ? createId() : id, name: name.trim(), kind, payload: structuredClone(payload), updatedAt: Date.now() };
         if (index < 0) list.push(item); else list[index] = item;
     }
     return next;

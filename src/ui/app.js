@@ -1,4 +1,5 @@
 /* iframe 工作台：通过受限 RPC 驱动视图，独立主题与导航，不访问宿主 DOM。 */
+import { createId } from '../bridge/id.js';
 import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js';
 import { button, el } from './components.js';
 import { renderView } from './views.js';
@@ -6,7 +7,7 @@ const pending=new Map();let state;
 const ui={page:'preset',previous:'preset',scheme:{},apiDraft:{},models:[]};
 const app=document.querySelector('#app'),tabs=document.querySelector('#tabs'),status=document.querySelector('#status');
 function rpc(method,payload={}) {
-    const requestId=crypto.randomUUID();
+    const requestId=createId();
     return new Promise((resolve,reject)=>{
         const timer=setTimeout(()=>{pending.delete(requestId);reject(Error('酒馆响应超时，请刷新后重试。'));},30000);
         pending.set(requestId,{resolve,reject,timer});
@@ -33,10 +34,11 @@ function draw(){
 for(const [page,label] of [['preset','预设'],['world','世界书']]){const tab=button(label,()=>{ui.page=page;draw();});tab.dataset.page=page;tab.setAttribute('role','tab');tabs.append(tab);}
 document.querySelector('#settings').addEventListener('click',()=>{if(ui.page==='settings')ui.page=ui.previous;else{ui.previous=ui.page;ui.page='settings';}if(state)draw();});
 document.querySelector('#appearance').addEventListener('click',()=>{if(state)act('settings.update',{appearance:{auto:'light',light:'dark',dark:'auto'}[state.settings.appearance||'auto']});});
-document.querySelector('#close').addEventListener('click',()=>rpc('ui.close').catch(()=>{}));
+const closePanel=()=>parent.postMessage({channel:CHANNEL,type:'close'},location.origin);
+document.querySelector('#close').addEventListener('click',closePanel);
 document.querySelector('#refresh').addEventListener('click',()=>act('sources.refresh'));
 document.querySelector('#cancel').addEventListener('click',()=>act('planner.cancel',{},false));
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!document.querySelector('dialog[open]'))rpc('ui.close').catch(()=>{});});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!document.querySelector('dialog[open]'))closePanel();});
 window.addEventListener('message',event=>{
     if(!acceptsMessage(event,parent,location.origin))return;
     const data=event.data;

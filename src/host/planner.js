@@ -1,4 +1,5 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
+import { createId } from '../bridge/id.js';
 import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js';
 import { resolveProfile, profileRequest } from '../planning/profiles.js';
 export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {} }) {
@@ -68,7 +69,7 @@ async function onRequest(data) {
     }
     const config = structuredClone(settings());
     const original = structuredClone(data.messages);
-    const run = { controller: new AbortController(), identity: chatIdentity(), requestId: crypto.randomUUID() };
+    const run = { controller: new AbortController(), identity: chatIdentity(), requestId: createId() };
     pending = run;
     const timer = setTimeout(() => run.controller.abort(), Number(config.timeoutSeconds) * 1000);
     previewNode.value = '';
