@@ -1,11 +1,11 @@
 /* 酒馆宿主入口：魔法棒面板、受限 RPC、规划请求和楼内 iframe 生命周期。 */
 import { getRequestHeaders, stopGeneration, saveSettings } from '/script.js';
-import { createPlanner } from './planner.js?v=0.4.0-dev.8';
-import { createWorkbench } from './workbench.js?v=0.4.0-dev.8';
-import { createMessagePlans } from './message-plans.js?v=0.4.0-dev.8';
-import { createGenerationBinding } from './generation-binding.js?v=0.4.0-dev.8';
-import { migrateSchemes } from '../planning/schemes.js?v=0.4.0-dev.8';
-import { CHANNEL, acceptsMessage, validateRpc, themeSnapshot } from '../bridge/protocol.js?v=0.4.0-dev.8';
+import { createPlanner } from './planner.js?v=0.4.0-dev.9';
+import { createWorkbench } from './workbench.js?v=0.4.0-dev.9';
+import { createMessagePlans } from './message-plans.js?v=0.4.0-dev.9';
+import { createGenerationBinding } from './generation-binding.js?v=0.4.0-dev.9';
+import { migrateSchemes } from '../planning/schemes.js?v=0.4.0-dev.9';
+import { CHANNEL, acceptsMessage, validateRpc, themeSnapshot } from '../bridge/protocol.js?v=0.4.0-dev.9';
 const ID='czgh_external_planner';
 const ctx=()=>SillyTavern.getContext();
 const chatId=()=>JSON.stringify([ctx().chatId,ctx().characterId,ctx().groupId]);
@@ -15,7 +15,7 @@ function init(){
     const menu=document.querySelector('#extensions_menu')||document.querySelector('#extensionsMenu');if(!menu)return;initialized=true;
     const dialog=document.createElement('dialog');dialog.id='czgh-planner-container';dialog.setAttribute('aria-label','创作规划');
     for(const [key,value] of Object.entries({padding:'0',margin:'auto',border:'0',background:'transparent',width:'min(460px,96vw)',height:'min(840px,92dvh)','max-width':'96vw','max-height':'92dvh',overflow:'hidden','box-shadow':'0 24px 80px #101d3540, 0 4px 16px #101d351f','border-radius':'14px','clip-path':'inset(0 round 14px)',transform:'none'}))dialog.style.setProperty(key,value,'important');
-    const frame=document.createElement('iframe');frame.title='创作规划';frame.src=new URL('../ui/index.html?v=0.4.0-dev.8',import.meta.url).href;
+    const frame=document.createElement('iframe');frame.title='创作规划';frame.src=new URL('../ui/index.html?v=0.4.0-dev.9',import.meta.url).href;
     frame.style.cssText='display:block!important;width:100%!important;height:100%!important;border:0!important;margin:0!important;padding:0!important;background:transparent!important;border-radius:14px!important;clip-path:inset(0 round 14px)!important;';dialog.append(frame);document.body.append(dialog);
     const send=(type,payload)=>frame.contentWindow?.postMessage({channel:CHANNEL,type,payload},location.origin);
     const theme=()=>themeSnapshot(getComputedStyle(document.body));
@@ -26,7 +26,7 @@ function init(){
         for(const record of records){
             const parent=document.querySelector(`.mes[mesid="${record.messageId}"] .mes_block`);if(!parent)continue;
             let item=panelFrames.get(record.messageId);
-            if(!item){const panel=document.createElement('iframe');panel.title='本楼创作规划';panel.src=new URL('../ui/message.html?v=0.4.0-dev.8',import.meta.url).href;panel.style.cssText='display:block!important;width:100%!important;height:42px!important;border:0!important;margin:8px 0!important;background:transparent!important;';parent.append(panel);item={frame:panel,record};panelFrames.set(record.messageId,item);panel.addEventListener('load',()=>panel.contentWindow?.postMessage({channel:CHANNEL,type:'plan',payload:{record:item.record,theme:theme()}},location.origin));}
+            if(!item){const panel=document.createElement('iframe');panel.title='本楼创作规划';panel.src=new URL('../ui/message.html?v=0.4.0-dev.9',import.meta.url).href;panel.style.cssText='display:block!important;width:100%!important;height:42px!important;border:0!important;margin:8px 0!important;background:transparent!important;';parent.append(panel);item={frame:panel,record};panelFrames.set(record.messageId,item);panel.addEventListener('load',()=>panel.contentWindow?.postMessage({channel:CHANNEL,type:'plan',payload:{record:item.record,theme:theme()}},location.origin));}
             item.record=record;item.frame.contentWindow?.postMessage({channel:CHANNEL,type:'plan',payload:{record,theme:theme()}},location.origin);
         }
     }});
@@ -35,7 +35,7 @@ function init(){
         await plans.bind({requestId:record.requestId,messageId,swipeId:message.swipe_id??0});
         if(record.chatId===chatId()&&record.nextWorldState){ctx().chatMetadata.czghCreativePlanningWorld=record.nextWorldState;ctx().saveMetadataDebounced();}
     }});
-    const planner=createPlanner({getContext:ctx,getRequestHeaders,stopGeneration,getYaml:()=>SillyTavern.libs?.yaml,onState:s=>send('state',s),prepare:args=>workbench.prepare(args),onPlanReady:record=>{binding.stage(record);plans.stage(record);},onDiscard:requestId=>plans.discard(requestId)});
+    const planner=createPlanner({getContext:ctx,getRequestHeaders,stopGeneration,getYaml:()=>SillyTavern.libs?.yaml,onState:s=>send('state',s),prepare:args=>workbench.prepare(args),onPlanReady:record=>{binding.stage(record);plans.stage(record);},onProgress:record=>plans.updateLive(record),onDiscard:requestId=>plans.discard(requestId)});
     ctx().extensionSettings[ID]=migrateSchemes(ctx().extensionSettings[ID]);
     let rpcQueue=Promise.resolve();
     window.addEventListener('message',event=>{
@@ -58,12 +58,14 @@ function init(){
     const button=document.createElement('button');button.id='czgh-planner-menu';button.type='button';button.className='list-group-item flex-container flexGap5 interactable';button.textContent='✎ 创作规划';
     button.addEventListener('click',()=>{if(!dialog.open)dialog.showModal();send('theme',theme());send('refresh');});menu.append(button);
     const on=(name,fn)=>{if(ctx().eventTypes[name])ctx().eventSource.on(ctx().eventTypes[name],fn);};
+    on('USER_MESSAGE_RENDERED',id=>{if(ctx().extensionSettings[ID]?.enabled&&ctx().chat?.[id]?.is_user)plans.updateLive({chatId:chatId(),expectedMessageId:Number(id)+1,phase:'waiting',text:''});});
     on('MESSAGE_RECEIVED',(messageId,type)=>binding.received(messageId,type));
     on('GENERATION_STARTED',()=>binding.started());
-    on('GENERATION_STOPPED',()=>binding.stopped());
-    on('GENERATION_ENDED',()=>{binding.ended();plans.render();});
+    on('GENERATION_STOPPED',()=>{binding.stopped();plans.settleWaiting('cancelled');});
+    on('GENERATION_ENDED',()=>{binding.ended();plans.settleWaiting('skipped');plans.render();});
     on('CHAT_CHANGED',()=>{binding.stopped();plans.dispose();plans.render();if(dialog.open)send('refresh');});
-    for(const event of ['CHARACTER_MESSAGE_RENDERED','MESSAGE_SWIPED','MESSAGE_UPDATED','MESSAGE_DELETED','CHAT_LOADED'])on(event,()=>plans.render());
+    on('MESSAGE_SWIPED',()=>plans.clearLive());
+    for(const event of ['CHARACTER_MESSAGE_RENDERED','MESSAGE_UPDATED','MESSAGE_DELETED','CHAT_LOADED'])on(event,()=>plans.render());
     let previous='';setInterval(()=>{const value=theme(),json=JSON.stringify(value);if(json===previous)return;previous=json;if(dialog.open)send('theme',value);for(const item of panelFrames.values())item.frame.contentWindow?.postMessage({channel:CHANNEL,type:'theme',payload:value},location.origin);},800);
     plans.render();
 }

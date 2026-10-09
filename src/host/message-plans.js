@@ -6,6 +6,7 @@ export function fingerprint(text) {
 }
 export function createMessagePlans(host) {
     const pending = new Map();
+    let live;
     function render() {
         const records = new Map();
         const userBefore = index => {
@@ -23,10 +24,17 @@ export function createMessagePlans(host) {
             const anchor = userBefore(Math.min(record.expectedMessageId ?? host.messages().length, host.messages().length) - 1);
             if (record.chatId === host.chatId() && anchor >= 0) records.set(anchor, { ...record, messageId: anchor, stale: false });
         }
+        if (host.display() && live?.chatId === host.chatId()) {
+            const anchor = userBefore(Math.min(live.expectedMessageId, host.messages().length) - 1);
+            if (anchor >= 0) records.set(anchor, { ...live, messageId: anchor });
+        }
         host.render([...records.values()]);
     }
     return {
-        stage(record) { pending.clear(); pending.set(record.requestId, structuredClone(record)); render(); },
+        updateLive(record) { if (record.chatId !== host.chatId()) return; live = structuredClone(record); render(); },
+        settleWaiting(phase) { if (live?.phase === 'waiting') { live.phase = phase; render(); } },
+        clearLive() { live = null; render(); },
+        stage(record) { live = null; pending.clear(); pending.set(record.requestId, structuredClone(record)); render(); },
         async bind({ requestId, messageId, swipeId }) {
             const record = pending.get(requestId); pending.delete(requestId);
             const message = host.messages()[messageId];
@@ -45,6 +53,6 @@ export function createMessagePlans(host) {
         },
         render,
         discard(requestId) { if (requestId) pending.delete(requestId); else pending.clear(); render(); },
-        dispose() { pending.clear(); host.render([]); },
+        dispose() { live = null; pending.clear(); host.render([]); },
     };
 }

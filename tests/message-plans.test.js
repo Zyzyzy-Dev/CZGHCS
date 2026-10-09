@@ -1,6 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMessagePlans } from '../src/host/message-plans.js';
+test('live planning and errors render under user without persisting partial text',()=>{
+    const messages=[{is_user:true,mes:'输入'}];let view;
+    const service=createMessagePlans({chatId:()=> 'c',messages:()=>messages,display:()=>true,render:r=>view=r,save:()=>assert.fail('partial must not persist')});
+    service.updateLive({chatId:'c',expectedMessageId:1,text:'',phase:'preparing'});
+    assert.equal(view[0].messageId,0);
+    service.updateLive({chatId:'c',expectedMessageId:1,text:'部分规划',phase:'streaming'});
+    assert.equal(view[0].text,'部分规划');
+    service.updateLive({chatId:'c',expectedMessageId:1,text:'部分规划',phase:'error',error:'请求失败'});
+    service.discard();assert.equal(view[0].error,'请求失败');
+    assert.equal(messages[0].extra,undefined);
+    service.dispose();assert.deepEqual(view,[]);
+});
 test('plans persist per swipe without editing body and never bind a cancelled or foreign result',async()=>{
     const message={mes:'正文',swipe_id:0,extra:{},swipe_info:[{extra:{}}]};let saved=0,chatId='c';
     const view=[];

@@ -1,9 +1,9 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.4.0-dev.8';
-import { createId } from '../bridge/id.js?v=0.4.0-dev.8';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.8';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.8';
-export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {} }) {
+import { readPlanResponse } from './stream.js?v=0.4.0-dev.9';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.9';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.9';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.9';
+export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
 const ctx = getContext;
@@ -23,7 +23,7 @@ function chatIdentity() {
 }
 function abortPending() { pending?.controller.abort(); }
 
-async function requestPlan(messages, config, key, signal) {
+async function requestPlan(messages, config, key, signal, progress) {
     let body;
     if (config.request) {
         body = { ...structuredClone(config.request), messages, stream: false, max_tokens: Number(config.maxTokens) };
@@ -53,7 +53,7 @@ async function requestPlan(messages, config, key, signal) {
         body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error(`规划 API 请求失败（HTTP ${response.status}）。`);
-    const choice = await readPlanResponse(response, text => { previewNode.value = text; }, signal);
+    const choice = await readPlanResponse(response, text => { previewNode.value = text; progress?.(text); }, signal);
     return extractPlan(choice.message?.content, config, choice.finish_reason);
 }
 
@@ -71,6 +71,8 @@ async function onRequest(data) {
     const original = structuredClone(data.messages);
     const run = { controller: new AbortController(), identity: chatIdentity(), requestId: createId() };
     pending = run;
+    const record = { requestId: run.requestId, chatId: run.identity, expectedMessageId: data.type === 'swipe' ? (ctx().chat?.length || 1)-1 : (ctx().chat?.length || 0), text: '', phase: 'preparing', mainStream: data.stream };
+    onProgress(record);
     const timer = setTimeout(() => run.controller.abort(), Number(config.timeoutSeconds) * 1000);
     previewNode.value = '';
     try {
@@ -92,18 +94,19 @@ async function onRequest(data) {
         validateSettings(config);
         if (unresolvedBaiBaiMacros(contextMessages)) throw new Error('发现尚未展开的柏宝书宏，请检查宏设置后重试。');
         status(`正在按 ${config.openTag}…${config.closeTag} 生成本轮规划；完成后自动继续正文…`);
-        const plan = await requestPlan(planningMessages(contextMessages, config), config, apiKey, run.controller.signal);
+        const plan = await requestPlan(planningMessages(contextMessages, config), config, apiKey, run.controller.signal, text => { record.text = text; record.phase = 'streaming'; onProgress(record); });
         if (run.controller.signal.aborted || run.identity !== chatIdentity()) throw new Error('本轮已取消或聊天已切换。');
         // Independent mode may not rewrite any original instruction via legacy replacement rules.
         data.messages = writingMessages(original, plan, prepare ? { ...config, rules: '[]' } : config);
         onPlanReady({ version: 1, requestId: run.requestId, chatId: run.identity, text: plan, openTag: config.openTag, closeTag: config.closeTag, createdAt: Date.now(), generationType: data.type || 'normal', expectedMessageId: data.type === 'swipe' ? (ctx().chat?.length || 1) - 1 : (ctx().chat?.length || 0), nextWorldState: prepared?.nextWorldState });
         previewNode.value = `${config.openTag}\n${plan}\n${config.closeTag}`;
-        status(`规划已注入（${plan.length} 字符），正在生成正文。`);
+        status(`规划已注入（${plan.length} 字符），正在生成正文。正文请求流式：${data.stream === true ? '开启' : data.stream === false ? '关闭' : '未提供'}。`);
     } catch (error) {
         // ST's event emitter swallows thrown errors. Explicitly abort main generation.
         const wasAborted = run.controller.signal.aborted;
         onDiscard(run.requestId);
         stopGeneration();
+        record.phase = wasAborted ? 'cancelled' : 'error'; record.error = wasAborted ? '规划已停止或超时，未注入正文。' : error.message; onProgress(record);
         status(wasAborted
             ? '规划已停止或超时；未注入。可重新发送，或选择下次跳过。'
             : `${error.message} 正文已停止；可重新发送或选择下次跳过。`);
