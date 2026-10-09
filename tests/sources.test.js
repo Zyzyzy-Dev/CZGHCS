@@ -18,3 +18,19 @@ test('source capture clones inputs, includes auxiliary/chat books and rejects a 
     world.loadWorldInfo=async()=>{ctx.chatId='another';return{entries:{}};};
     await assert.rejects(captureSources(host,{}),/聊天/);
 });
+
+
+test('swipe excludes replaced response before history macros, regenerate uses already-trimmed host history',async()=>{
+    const ctx={chatId:'c',chat:[{mes:'之前回复'},{is_user:true,mes:'本轮输入'},{mes:'旧备选回复',extra:{image:'old'}}],chatMetadata:{}};
+    const host={context:()=>ctx,manager:{getPresetList:()=>({}),getSelectedPresetName:()=>''},world:{loadWorldInfo:async()=>({entries:{}})},openai:{},powerUser:{}};
+    const swipe=await captureSources(host,{generationType:'swipe'});
+    assert.deepEqual(swipe.history.map(m=>m.content),['之前回复','本轮输入']);
+    assert.equal(swipe.userInput,'本轮输入');assert.equal(swipe.macroEnvironment.lastmessage,'本轮输入');
+    assert.equal(swipe.macroEnvironment.lastcharmessage,'之前回复');assert.equal(swipe.capabilities.media,false);
+    assert.equal(ctx.chat.length,3);
+    ctx.chat.pop();
+    assert.deepEqual((await captureSources(host,{generationType:'regenerate'})).history,swipe.history);
+    // ST already removes the replaced reply, even if the preceding message is another assistant.
+    ctx.chat=[{mes:'保留的上一条回复'}];
+    assert.equal((await captureSources(host,{generationType:'regenerate'})).history.length,1);
+});

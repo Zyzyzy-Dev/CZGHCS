@@ -71,3 +71,15 @@ test('invalid settings fail before a request', () => {
         assert.throws(() => validateSettings({ ...config, ...change }));
     }
 });
+
+
+test('preset planning contract migrates previous defaults but preserves custom instructions',()=>{
+    const old='按当前预设已启用的写作准备问题逐项完成本轮公开创作规划。保留主题、编号、具体依据和创作要求；区分已发生事实与本轮拟写安排。只输出规划，不生成正文、状态栏、时间戳或其他附加成品。';
+    assert.notEqual(migrateSettings({plannerInstruction:old}).plannerInstruction,old);
+    assert.equal(migrateSettings({plannerInstruction:'我的补充要求'}).plannerInstruction,'我的补充要求');
+    const message=planningMessages([],{...config,plannerInstruction:'我的补充要求'}).at(-1).content;
+    assert.match(message,/不得新增预设未要求/);
+    assert.match(message,/预写片段/);
+    assert.match(message,/不得省略、合并/);
+    assert.match(message,/<Abstract>/);
+});

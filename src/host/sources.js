@@ -1,10 +1,10 @@
 /* 只读来源快照：预设、角色、聊天、世界书及本轮插件注入；异步期间检查聊天身份。 */
-import { createId } from '../bridge/id.js?v=0.4.0-dev.9';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.10';
 function freeze(value) {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); Object.values(value).forEach(freeze); }
     return value;
 }
-export async function captureSources(host, { signal, extraBooks = [] } = {}) {
+export async function captureSources(host, { signal, extraBooks = [], generationType } = {}) {
     const context = host.context();
     const identity = () => JSON.stringify([host.context().chatId, host.context().characterId, host.context().groupId]);
     const chatId = identity();
@@ -35,6 +35,8 @@ export async function captureSources(host, { signal, extraBooks = [] } = {}) {
         Object.defineProperty(books, name, { value: structuredClone(data), enumerable: true });
     }
     const history = (context.chat || []).filter(m => !m.is_system).map(m => ({ role: m.is_user ? 'user' : 'assistant', content: structuredClone(m.content ?? m.mes ?? ''), name: m.name, extra: structuredClone(m.extra || {}) }));
+    // ST retains the replaced floor for swipe, but has already removed it for regenerate.
+    if (generationType === 'swipe' && history.at(-1)?.role === 'assistant') history.pop();
     const injections = Object.fromEntries(Object.entries(context.extensionPrompts || {}).map(([key,p]) => [key,{value:String(p.value || ''),position:p.position,depth:p.depth,role:p.role,scan:!!p.scan,hasFilter:typeof p.filter==='function'}]));
     const snapshot = { id: createId(), chatId, character, history, userInput: history.at(-1)?.role === 'user' ? history.at(-1).content : '', presets: presetMap, currentPreset, books, bookNames: [...(world.world_names || [])], bindings, injections,
         macroEnvironment: { user: context.name1 || '', char: context.name2 || character.name || '', description: character.description || character.data?.description || '', personality: character.personality || character.data?.personality || '', scenario: character.scenario || character.data?.scenario || '', persona: host.powerUser?.persona_description || '', original: '', lastusermessage: history.findLast(m => m.role === 'user')?.content || '', lastcharmessage: history.findLast(m => m.role === 'assistant')?.content || '', lastmessage: history.at(-1)?.content || '', lastmessageid: history.length - 1 },

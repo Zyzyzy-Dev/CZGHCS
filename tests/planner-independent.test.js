@@ -48,3 +48,36 @@ test('planning failure is published to the floor without injecting a plan',async
     assert.equal(stopped,1); assert.equal(data.messages.length,1); assert.equal(data.stream,false);
     assert.equal(progress.at(-1).phase,'error'); assert.equal(progress.at(-1).error,'测试资料读取失败');
 });
+
+
+test('normal, regenerate and new swipe request fresh plans and bind independently',async()=>{
+    const {createMessagePlans}=await import('../src/host/message-plans.js');
+    const {createGenerationBinding}=await import('../src/host/generation-binding.js');
+    const listeners={},records=[];let calls=0,view;
+    const context={chatId:'c',chat:[{is_user:true,mes:'本轮输入'}],extensionSettings:{},eventTypes:{CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(n,f)=>listeners[n]=f}};
+    const identity=()=>JSON.stringify([context.chatId,context.characterId,context.groupId]);
+    const plans=createMessagePlans({chatId:identity,messages:()=>context.chat,display:()=>true,save:async()=>{},render:r=>view=r});
+    const binding=createGenerationBinding({identity,discard:id=>plans.discard(id),bind:(r,id)=>plans.bind({requestId:r.requestId,messageId:id,swipeId:context.chat[id].swipe_id})});
+    const originalFetch=globalThis.fetch;
+    globalThis.fetch=async()=>({ok:true,json:async()=>({choices:[{message:{content:`<Think>新规划${++calls}</Think>`},finish_reason:'stop'}]})});
+    try {
+        createPlanner({getContext:()=>context,getRequestHeaders:()=>({}),stopGeneration(){},prepare:async()=>({messages:[{role:'system',content:'规划使用 <Think> 标签'}],request:{model:'p'}}),onProgress:r=>plans.updateLive(r),onPlanReady:r=>{records.push(r);binding.stage(r);plans.stage(r);}});
+        context.extensionSettings.czgh_external_planner.enabled=true;
+        for(const type of ['normal','regenerate','swipe']) {
+            binding.started();
+            if(type==='regenerate')context.chat.pop(); // Native ST removes the replaced response first.
+            const data={type,stream:true,messages:[{role:'user',content:'本轮输入'}]};
+            await listeners.request(data);
+            assert.equal(calls,records.length);assert.match(data.messages.at(-1).content,new RegExp('新规划'+calls));
+            if(type==='swipe') {context.chat[1].swipe_id=1;context.chat[1].mes='备选正文';}
+            else context.chat.push({mes:'正文'+calls,swipe_id:0,extra:{},swipe_info:[{extra:{}},{extra:{}}]});
+            binding.ended();await binding.received(1,type);
+            assert.equal(view[0].text,'新规划'+calls);
+        }
+        assert.equal(calls,3);assert.equal(new Set(records.map(r=>r.requestId)).size,3);
+        assert.equal(context.chat[1].extra.czghCreativePlanning[0].text,'新规划2');
+        assert.equal(context.chat[1].extra.czghCreativePlanning[1].text,'新规划3');
+        context.chat[1].swipe_id=0;context.chat[1].mes='正文2';plans.render();
+        assert.equal(view[0].text,'新规划2');assert.equal(calls,3); // Browsing an existing alternative is not generation.
+    } finally {globalThis.fetch=originalFetch;}
+});

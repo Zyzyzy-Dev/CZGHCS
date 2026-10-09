@@ -1,15 +1,15 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData } from '../planning/schemes.js?v=0.4.0-dev.9';
-import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.9';
-import { captureSources } from './sources.js?v=0.4.0-dev.9';
-import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.9';
-import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.9';
-import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.9';
-import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.9';
-import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.9';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.9';
-import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.9';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.9';
+import { migrateSchemes, applySchemeOperation, assertSafeData } from '../planning/schemes.js?v=0.4.0-dev.10';
+import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.10';
+import { captureSources } from './sources.js?v=0.4.0-dev.10';
+import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.10';
+import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.10';
+import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.10';
+import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.10';
+import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.10';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.10';
+import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.10';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.10';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -43,11 +43,11 @@ export function createWorkbench({ context, headers, saveSettings }) {
         if (!Array.isArray(data.data)) throw new Error('API 没有返回模型列表，可手动输入。');
         return data.data.map(x => x.id).filter(x => typeof x === 'string');
     } });
-    async function capture(signal, extraBooks) {
+    async function capture(signal, extraBooks, generationType) {
         const world = await import('/scripts/world-info.js');
         const c = context();
         const manager = c.getPresetManager?.('openai') || (await import('/scripts/preset-manager.js')).getPresetManager('openai');
-        return captureSources({ context, world, manager, openai: { oai_settings: c.chatCompletionSettings }, powerUser: c.powerUserSettings, baiBai: globalThis.STBaiBaiBook }, { signal, extraBooks });
+        return captureSources({ context, world, manager, openai: { oai_settings: c.chatCompletionSettings }, powerUser: c.powerUserSettings, baiBai: globalThis.STBaiBaiBook }, { signal, extraBooks, generationType });
     }
     async function snapshot(refresh = false) {
         const settings = read();
@@ -120,14 +120,13 @@ export function createWorkbench({ context, headers, saveSettings }) {
                 if(!response.ok)throw Error('无法冻结当前连接的密钥引用。');
                 currentRequest=freezeCurrentRequest(data,await response.json(),text=>globalThis.SillyTavern.libs?.yaml?.parse?.(text)??JSON.parse(text));
             }
-            const frozen = await capture(signal, state.selection.extraBooks);
+            const frozen = await capture(signal, state.selection.extraBooks, data.type);
             const snapshotData = await materializePluginMacros(frozen,state.selection,globalThis.STBaiBaiBook);
             const selectedPreset=snapshotData.presets[state.selection.presetId||snapshotData.currentPreset];
             snapshotData.maxContext=Number(selectedPreset?.openai_max_context)||snapshotData.maxContext;
             snapshotData.inputBudget=snapshotData.maxContext-Number(config.maxTokens);
             if(snapshotData.inputBudget<=0)throw new Error('规划最大输出已超过所选预设的上下文额度。');
             snapshotData.trigger = data.type || 'normal';
-            if (['regenerate','swipe'].includes(data.type) && snapshotData.history.at(-1)?.role === 'assistant') snapshotData.history.pop();
             const built = await buildPlanningContext({ snapshot: snapshotData, selection: state.selection, worldState: context().chatMetadata?.czghCreativePlanningWorld || {}, tokenize: text => context().getTokenCountAsync(text) });
             signal.throwIfAborted();
             if (state.apiSelection === 'current') {

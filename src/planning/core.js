@@ -11,7 +11,7 @@ export const defaults = Object.freeze({
     openTag: '',
     closeTag: '',
     rules: '[]',
-    plannerInstruction: '按当前预设已启用的写作准备问题逐项完成本轮公开创作规划。保留主题、编号、具体依据和创作要求；区分已发生事实与本轮拟写安排。只输出规划，不生成正文、状态栏、时间戳或其他附加成品。',
+    plannerInstruction: '按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号与子问题，区分已发生事实与本轮拟写安排。',
     writerInstruction: '本轮写作规划已在下方提供。将预设中要求生成、展示或再次回答规划的问题视为已经完成，不重复输出规划区块。从规划之后的实际成品开始，按规划完成本轮回复。继续遵守原预设的人设、文风、正文、顶栏、状态栏、时间戳、摘要及其他附加内容要求：原本要求生成的照常生成，原本未要求或禁止的不要新增。规划中的拟写安排不是已发生的历史事实；与用户最新输入或已知事实冲突时以原始资料为准。',
 });
 
@@ -54,6 +54,7 @@ export function resolvePlanningTags(messages, settings) {
 
 export function migrateSettings(saved = {}) {
     const merged = { ...defaults, ...saved };
+    if (saved.plannerInstruction === '按当前预设已启用的写作准备问题逐项完成本轮公开创作规划。保留主题、编号、具体依据和创作要求；区分已发生事实与本轮拟写安排。只输出规划，不生成正文、状态栏、时间戳或其他附加成品。') merged.plannerInstruction = defaults.plannerInstruction;
     if (!saved.tagMode) {
         // Preserve an explicit non-default override from 0.1.0; migrate its default to auto.
         merged.tagMode = saved.openTag && saved.closeTag
@@ -91,7 +92,7 @@ export function parseRules(raw) {
 
 export function planningMessages(messages, settings) {
     return [...structuredClone(messages), { role: 'system', content:
-        `${settings.plannerInstruction}\n结果必须仅包含一个完整区块：${settings.openTag}规划内容${settings.closeTag}。闭合标签后立即结束。` }];
+        `${settings.plannerInstruction}\n输出范围以预设指定的规划区块为准：逐项回答已启用步骤及子问题，不得省略、合并或用总括性结论代替后续步骤。条件不成立时只按预设要求跳过；资料缺失时说明缺失，不编造事实。保留预设明确要求放在规划内的例句、预写片段、格式确认及状态核算，但不输出规划区块之外的正文、顶栏、状态栏或时间戳成品。不得新增预设未要求的自我评价、总结、检查报告或结束宣言。\n结果必须仅包含一个完整区块：${settings.openTag}规划内容${settings.closeTag}。闭合标签后立即结束。` }];
 }
 
 export function extractPlan(text, settings, finishReason) {
