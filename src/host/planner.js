@@ -1,7 +1,8 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { createId } from '../bridge/id.js?v=0.4.0-dev.6';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.6';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.6';
+import { readPlanResponse } from './stream.js?v=0.4.0-dev.7';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.7';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.7';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.7';
 export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
@@ -45,15 +46,14 @@ async function requestPlan(messages, config, key, signal) {
             model: config.model, messages, stream: false, max_tokens: Number(config.maxTokens),
         };
     }
+    body.stream = !!config.stream;
     // Use ST's own backend proxy, without invoking Generate or emitting chat events.
     const response = await fetch('/api/backends/chat-completions/generate', {
         method: 'POST', headers: getRequestHeaders(), signal,
         body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error(`规划 API 请求失败（HTTP ${response.status}）。`);
-    const result = await response.json();
-    const choice = result?.choices?.[0];
-    if (result.error || !choice) throw new Error('规划 API 返回错误或不支持的格式。');
+    const choice = await readPlanResponse(response, text => { previewNode.value = text; }, signal);
     return extractPlan(choice.message?.content, config, choice.finish_reason);
 }
 

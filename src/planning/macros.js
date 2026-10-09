@@ -41,8 +41,8 @@ export function expandMacros(text, { snapshot, compatibilityIds = [], variables 
             if (bbs && args.length === 1 && name === 'bbsvar') return print(pathValue(bbs.vars, args[0]));
             issue('macro-dependency', `无法读取柏宝书宏 ${raw} 所需的快照。`, true); return '';
         }
-        issue('unsupported-macro', `尚未安全支持宏 ${raw}，没有调用宿主全局宏解析器。`, true);
-        return '';
+        issue('literal-placeholder', `未识别的双花括号内容 ${raw} 已原样保留。`);
+        return `{{${token}}}`;
     };
     let evaluations = 0;
     function parse(input, depth = 0) {

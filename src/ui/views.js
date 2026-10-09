@@ -1,6 +1,6 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.6';
-import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.6';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.7';
+import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.7';
 export function renderView(root, state, ui, act) {
     const s=state.settings, selection=s.selection;
     root.replaceChildren();
@@ -32,11 +32,11 @@ export function renderView(root, state, ui, act) {
         const list=el('datalist');list.id='model-list';for(const name of ui.models||[]){const o=el('option');o.value=name;list.append(o);}api.append(list);
         const numbers=el('div','two-fields');numbers.append(field('最大输出',s.maxTokens,v=>act('settings.update',{maxTokens:v}),'number'),field('超时秒数',s.timeoutSeconds,v=>act('settings.update',{timeoutSeconds:v}),'number'));api.append(numbers);
         api.append(el('p','hint','自动记住上次使用的方案。编辑器方案只读；新建和覆盖仅保存到创作规划。新密钥保存在当前浏览器，刷新后保留；清除网站数据会删除密钥，不自动同步到其他设备。'));
-        root.append(section('通用设置',api));
+        api.append(check('流式生成规划',s.stream,v=>act('settings.update',{stream:v})));root.append(section('通用设置',api));
         const compatibility=el('div','section-body');
         for(const [category,label] of [['memory','记忆插件'],['plot','剧情规划插件']]){compatibility.append(el('h3','',label));for(const plugin of state.compatibility.filter(p=>p.category===category)){const line=el('div','plugin-row');line.append(check(plugin.name,selection.compatibilityIds.includes(plugin.id),v=>act('selection.update',{compatibilityIds:v?[...selection.compatibilityIds,plugin.id]:selection.compatibilityIds.filter(x=>x!==plugin.id)})),el('small','muted',plugin.status));compatibility.append(line);}}
         root.append(section('插件兼容',compatibility));
-        const display=el('div','section-body');display.append(check('楼内显示规划',s.displayPlan,v=>act('settings.update',{displayPlan:v})));root.append(section('显示设置',display));
+        const display=el('div','section-body');display.append(check('在用户消息下显示规划',s.displayPlan,v=>act('settings.update',{displayPlan:v})));root.append(section('显示设置',display));
         const advanced=el('div','section-body');advanced.append(select('规划标签',[{id:'auto',name:'自动跟随预设标签'},{id:'manual',name:'手动指定标签'}],s.tagMode,v=>act('settings.update',{tagMode:v})));
         if(s.tagMode==='manual')advanced.append(field('开始标签',s.openTag,v=>act('settings.update',{openTag:v})),field('结束标签',s.closeTag,v=>act('settings.update',{closeTag:v})));
         root.append(section('高级设置',advanced,true));

@@ -7,16 +7,26 @@ export function fingerprint(text) {
 export function createMessagePlans(host) {
     const pending = new Map();
     function render() {
-        const records = [];
+        const records = new Map();
+        const userBefore = index => {
+            const messages = host.messages();
+            for (let i = index; i >= 0; i--) if (messages[i]?.is_user) return i;
+            return -1;
+        };
         if (host.display()) host.messages().forEach((message, messageId) => {
             const swipeId = message.swipe_id ?? 0;
             const record = message.extra?.czghCreativePlanning?.[swipeId];
-            if (record) records.push({ ...record, messageId, swipeId, stale: record.bodyFingerprint !== fingerprint(message.mes) });
+            const anchor = userBefore(messageId - 1);
+            if (record && anchor >= 0) records.set(anchor, { ...record, messageId: anchor, sourceMessageId: messageId, swipeId, stale: record.bodyFingerprint !== fingerprint(message.mes) });
         });
-        host.render(records);
+        if (host.display()) for (const record of pending.values()) {
+            const anchor = userBefore(Math.min(record.expectedMessageId ?? host.messages().length, host.messages().length) - 1);
+            if (record.chatId === host.chatId() && anchor >= 0) records.set(anchor, { ...record, messageId: anchor, stale: false });
+        }
+        host.render([...records.values()]);
     }
     return {
-        stage(record) { pending.clear(); pending.set(record.requestId, structuredClone(record)); },
+        stage(record) { pending.clear(); pending.set(record.requestId, structuredClone(record)); render(); },
         async bind({ requestId, messageId, swipeId }) {
             const record = pending.get(requestId); pending.delete(requestId);
             const message = host.messages()[messageId];
@@ -34,7 +44,7 @@ export function createMessagePlans(host) {
             await host.save(); render();
         },
         render,
-        discard(requestId) { if (requestId) pending.delete(requestId); else pending.clear(); },
+        discard(requestId) { if (requestId) pending.delete(requestId); else pending.clear(); render(); },
         dispose() { pending.clear(); host.render([]); },
     };
 }

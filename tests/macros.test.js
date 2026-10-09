@@ -13,10 +13,16 @@ test('isolated variables expand without writing back and unchecked memory macros
     assert.equal(expandMacros('{{bbsVar::好感}}',{snapshot,compatibilityIds:['baibai'],variables}).text,'5');
     assert.deepEqual(selectInjections(snapshot,['seven-days']).items.map(x=>x.key),['sp_outline_step']);
     assert.equal(selectInjections(snapshot,['baibai']).items[0].depth,2);
-    assert.ok(expandMacros('{{unknown::x}}',{snapshot,compatibilityIds:[],variables}).diagnostics.some(d=>d.blocking));
+    assert.equal(expandMacros('{{unknown::x}}',{snapshot,compatibilityIds:[],variables}).text,'{{unknown::x}}');
 });
 test('variable values may contain literal single braces and nested macros',()=>{
     const result=expandMacros('{{setvar::panel::<date>{YYYY/MM/DD}</date> {{user}}}}{{getvar::panel}}',{snapshot:{macroEnvironment:{user:'玩家'}},variables:{local:{},global:{}}});
     assert.equal(result.text,'<date>{YYYY/MM/DD}</date> 玩家');
     assert.equal(result.diagnostics.filter(d=>d.blocking).length,0);
+});
+
+test('template placeholders in the reported message remain literal without blocking',()=>{
+ const text='{{图片/视频/分享内容简述}} {{宏}} {{宏}} {{无}}';
+ const result=expandMacros(text,{snapshot:{macroEnvironment:{}}});
+ assert.equal(result.text,text);assert.equal(result.diagnostics.some(d=>d.blocking),false);
 });
