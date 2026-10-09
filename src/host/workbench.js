@@ -1,15 +1,15 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData } from '../planning/schemes.js?v=0.4.0-dev.5';
-import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.5';
-import { captureSources } from './sources.js?v=0.4.0-dev.5';
-import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.5';
-import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.5';
-import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.5';
-import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.5';
-import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.5';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.5';
-import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.5';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.5';
+import { migrateSchemes, applySchemeOperation, assertSafeData } from '../planning/schemes.js?v=0.4.0-dev.6';
+import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.6';
+import { captureSources } from './sources.js?v=0.4.0-dev.6';
+import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.6';
+import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.6';
+import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.6';
+import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.6';
+import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.6';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.6';
+import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.6';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.6';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -86,7 +86,21 @@ export function createWorkbench({ context, headers, saveSettings }) {
                 await api.save({ id: payload.id, name: payload.name, config, key: payload.key });
             } else if (method === 'api.remove') await api.remove(payload.id);
             else if (method === 'api.models') return api.models(await api.resolve(state.apiSelection));
-            else if (method === 'scheme.save') {
+            else if (method === 'scheme.loadCurrent') {
+                if (!['preset','world'].includes(payload.kind)) throw new Error('无效方案类型。');
+                const fresh = await capture(undefined, []);
+                if (payload.kind === 'preset') {
+                    const native = resolvePreset(fresh, { presetId: fresh.currentPreset });
+                    state.selection.presetId = fresh.currentPreset;
+                    state.selection.promptOverrides = Object.fromEntries(native.groups.flatMap(g => g.entries.map(e => [e.identifier, e.enabled])));
+                    state.selection.groupOverrides = Object.fromEntries(native.groups.filter(g => g.id).map(g => [g.id, g.enabled]));
+                } else {
+                    state.selection.bookOverrides = {};
+                    state.selection.entryOverrides = {};
+                    state.selection.extraBooks = [];
+                }
+                await write(state); source = fresh;
+            } else if (method === 'scheme.save') {
                 if (!['preset','world'].includes(payload.kind)) throw new Error('无效方案类型。');
                 const keys = payload.kind === 'preset' ? ['presetId','promptOverrides','groupOverrides'] : ['bookOverrides','entryOverrides','extraBooks'];
                 if (payload.applyId) {

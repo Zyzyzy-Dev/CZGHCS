@@ -1,15 +1,16 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.5';
-import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.5';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.6';
+import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.6';
 export function renderView(root, state, ui, act) {
     const s=state.settings, selection=s.selection;
     root.replaceChildren();
     const toolbar=(kind)=>{
         const bar=el('div','scheme-bar');bar.append(el('span','muted','方案'));
-        const options=[{id:'',name:'当前开关（未保存）'},...s.schemes[kind]];
-        bar.append(select(`${kind==='preset'?'预设':'世界书'}方案`,options,ui.scheme[kind]||'',async id=>{ui.scheme[kind]=id;if(id)await act('scheme.save',{kind,applyId:id});}));
+        const nativeName=kind==='preset'?'当前酒馆预设':'当前酒馆世界书';
+        const options=[{id:'',name:ui.loadedCurrent?.[kind]?`已载入${nativeName}（独立调整）`:'当前开关（未保存）'},{id:'@current',name:nativeName},...s.schemes[kind]];
+        bar.append(select(`${kind==='preset'?'预设':'世界书'}方案`,options,ui.scheme[kind]||'',async id=>{if(id==='@current'){if(await ask(`是否载入${nativeName}？将替换本页的独立选择，不修改酒馆原配置。`,'',true,'载入')){const result=await act('scheme.loadCurrent',{kind});if(result){ui.scheme[kind]='';(ui.loadedCurrent??={})[kind]=true;renderView(root,result,ui,act);}}else renderView(root,state,ui,act);return;}ui.scheme[kind]=id;if(id)await act('scheme.save',{kind,applyId:id});}));
         bar.append(button('新建方案',async()=>{const name=await ask('新建方案','');if(name)await act('scheme.save',{kind,name});},'+'));
-        const overwrite=button('覆盖方案',async()=>{const item=options.find(x=>x.id===ui.scheme[kind]);if(!item?.id)return;const name=await ask('覆盖方案',item.name);if(name)await act('scheme.save',{kind,id:item.id,name});},'↥');overwrite.disabled=!options.some(x=>x.id&&x.id===ui.scheme[kind]);bar.append(overwrite);
+        const overwrite=button('覆盖方案',async()=>{const item=options.find(x=>x.id===ui.scheme[kind]);if(!item?.id)return;const name=await ask('覆盖方案',item.name);if(name)await act('scheme.save',{kind,id:item.id,name});},'↥');overwrite.disabled=!s.schemes[kind].some(x=>x.id===ui.scheme[kind]);bar.append(overwrite);
         const remove=button('删除方案',async()=>{if(await ask('删除选中的方案？','',true)){await act('scheme.remove',{kind,id:ui.scheme[kind]});ui.scheme[kind]='';}},'⌫');remove.disabled=!ui.scheme[kind];bar.append(remove);return bar;
     };
     const change=(key,id,value)=>act('selection.update',{[key]:{...selection[key],[id]:value}});
@@ -41,13 +42,13 @@ export function renderView(root, state, ui, act) {
         root.append(section('高级设置',advanced,true));
     } else if(ui.page==='preset') {
         const bar=toolbar('preset');const chooser=el('div','preset-choice');chooser.append(el('span','muted','选择预设'),select('选择预设',state.presets.map(id=>({id,name:id})),selection.presetId||state.preset?.id,id=>act('selection.update',{presetId:id,promptOverrides:{},groupOverrides:{}})));bar.append(chooser);root.append(bar);
-        for(const item of state.preset?.display||[]){if(item.type==='prompt'){const entry=item.entry;root.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));continue;}const group=item.group;const content=el('div','section-body');const groupToggle=toggleSwitch('启用 '+group.name,group.checked,async value=>{const promptOverrides={...selection.promptOverrides};for(const entry of group.entries)promptOverrides[entry.identifier]=value;await act('selection.update',{promptOverrides,groupOverrides:group.id?{...selection.groupOverrides,[group.id]:value}:selection.groupOverrides});},group.partial);for(const entry of group.entries)content.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));const card=section(group.name,content,ui.collapsed?.[group.id]??group.collapsed);card.classList.add('switch-card');const summary=card.querySelector('summary');summary.replaceChildren(el('span','group-title',group.name),groupToggle);card.addEventListener('toggle',()=>{(ui.collapsed??={})[group.id]=!card.open;});root.append(card);}
+        for(const item of state.preset?.display||[]){if(item.type==='prompt'){const entry=item.entry;root.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));continue;}const group=item.group;const content=el('div','section-body');const groupToggle=toggleSwitch('启用 '+group.name,group.enabled,value=>change('groupOverrides',group.id,value));for(const entry of group.entries)content.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));const card=section(group.name,content,ui.collapsed?.[group.id]??group.collapsed);card.classList.add('switch-card');const summary=card.querySelector('summary');summary.replaceChildren(el('span','group-title',group.name),groupToggle);card.addEventListener('toggle',()=>{(ui.collapsed??={})[group.id]=!card.open;});root.append(card);}
     } else {
         root.append(toolbar('world'));
         const bindings=[['全局世界书',state.bindings.global],['角色世界书',state.bindings.character],['聊天世界书',state.bindings.chat],['用户角色世界书',state.bindings.persona],['插件开启的世界书',selection.extraBooks]];
         for(const [label,names] of bindings){if(!names?.length&& !['全局世界书','角色世界书','插件开启的世界书'].includes(label))continue;const content=el('div','section-body');
             if(!names?.length)content.append(el('p','hint','尚未挂载世界书'));
-            for(const name of names||[]){const book=el('div','book');const heading=el('div','book-heading');heading.append(el('span','',name),toggleSwitch(name,selection.bookOverrides[name]!==false,v=>change('bookOverrides',name,v)));book.append(heading);for(const [uid,entry] of Object.entries(state.books[name]?.entries||{})){const key=entryKey(name,entry.uid??uid);book.append(row(entry.comment||`条目 ${uid}`,entry.content,selection.entryOverrides[key]??!entry.disable,v=>change('entryOverrides',key,v)));}content.append(book);}
+            for(const name of names||[]){const book=el('details','book');book.open=ui.openBooks?.[name]??false;book.addEventListener('toggle',()=>{(ui.openBooks??={})[name]=book.open;});const heading=el('summary','book-heading');heading.append(el('span','',name),toggleSwitch(name,selection.bookOverrides[name]!==false,v=>change('bookOverrides',name,v)));book.append(heading);for(const [uid,entry] of Object.entries(state.books[name]?.entries||{})){const key=entryKey(name,entry.uid??uid);book.append(row(entry.comment||`条目 ${uid}`,entry.content,selection.entryOverrides[key]??!entry.disable,v=>change('entryOverrides',key,v)));}content.append(book);}
             root.append(section(label,content));}
         const add=button('添加世界书',()=>{
             const dialog=el('dialog','detail-dialog');dialog.append(el('h2','','添加世界书'));const search=el('input');search.placeholder='搜索世界书';search.setAttribute('aria-label','搜索世界书');const list=el('div','book-picker');

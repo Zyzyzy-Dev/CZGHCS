@@ -51,3 +51,6 @@ main>.entry-row{margin-bottom:10px}
 .group-title{flex:1;overflow-wrap:anywhere}
 .book-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px 2px 10px;background:var(--soft);border-radius:10px;font-weight:600}
 @media(prefers-reduced-motion:reduce){.switch-track,.switch-track:after{transition:none}}
+
+/* 世界书标题行独立折叠；右侧开关点击不会展开或收起。 */
+.book-heading{list-style:none;cursor:pointer}.book-heading:after{display:none}.book-heading::-webkit-details-marker{display:none}.book:not([open])>.book-heading{margin-bottom:0}

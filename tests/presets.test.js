@@ -21,3 +21,14 @@ test('BaiBai display follows first member in native order, retaining loose entri
     assert.deepEqual(view.display[1].group.entries.map(x=>x.identifier),['b','b2']);
     assert.deepEqual(view.execution.map(x=>x.identifier),ids);
 });
+
+test('group gate suppresses reading without changing mixed member switches',()=>{
+    const preset={prompts:[{identifier:'a'},{identifier:'b'}],prompt_order:[{character_id:100001,order:[{identifier:'a',enabled:true},{identifier:'b',enabled:false}]}],extensions:{baibaiToolkit:{presetPromptGroups:{groups:[{id:'g',enabled:true}],prompts:{a:{groupId:'g'},b:{groupId:'g'}}}}}};
+    const snapshot={presets:{P:preset},currentPreset:'P'};
+    const off=resolvePreset(snapshot,{groupOverrides:{g:false}});
+    assert.deepEqual(off.execution,[]);
+    assert.deepEqual(off.groups[0].entries.map(e=>e.enabled),[true,false]);
+    const on=resolvePreset(snapshot,{groupOverrides:{g:true}});
+    assert.deepEqual(on.execution.map(e=>e.identifier),['a']);
+    assert.deepEqual(on.groups[0].entries.map(e=>e.enabled),[true,false]);
+});

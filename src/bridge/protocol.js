@@ -1,5 +1,5 @@
 /* iframe 通信协议：限定消息来源、允许的设置字段和五个主题变量。 */
-import { defaults } from '../planning/core.js?v=0.4.0-dev.5';
+import { defaults } from '../planning/core.js?v=0.4.0-dev.6';
 export const CHANNEL = 'creative-planning-v1';
 export const THEME_KEYS = Object.freeze(['--SmartThemeBorderColor', '--SmartThemeBlurTintColor', '--SmartThemeBodyColor', '--mainFontFamily', '--monoFontFamily']);
 export function themeSnapshot(style) {
@@ -14,7 +14,7 @@ export function cleanSettings(value) {
         typeof value[key] === typeof initial && (typeof initial !== 'number' || Number.isFinite(value[key]))
     ).map(([key]) => [key, value[key]]));
 }
-const METHODS = new Set(['state.read', 'settings.update', 'api.save', 'api.remove', 'api.models', 'scheme.save', 'scheme.remove', 'selection.update', 'sources.refresh', 'planner.cancel', 'ui.close']);
+const METHODS = new Set(['state.read', 'settings.update', 'api.save', 'api.remove', 'api.models', 'scheme.loadCurrent', 'scheme.save', 'scheme.remove', 'selection.update', 'sources.refresh', 'planner.cancel', 'ui.close']);
 export function validateRpc(data) {
     if (!data || typeof data.requestId !== 'string' || data.requestId.length > 100 || !METHODS.has(data.method)) throw new Error('无效的界面请求。');
     if (JSON.stringify(data.payload).length > 262144) throw new Error('界面请求过大。');

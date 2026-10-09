@@ -39,12 +39,12 @@ export function detail(title, content) {
     const dialog = el('dialog', 'detail-dialog'), header = el('header'); header.append(el('h2','',title),button('关闭详情',()=>dialog.close(),'×'));
     dialog.append(header,el('pre','entry-content',content || '此条目没有文本内容。')); document.body.append(dialog); dialog.addEventListener('close',()=>dialog.remove()); dialog.showModal();
 }
-export async function ask(title, initial, destructive = false) {
+export async function ask(title, initial, destructive = false, confirmLabel = '') {
     return new Promise(resolve => {
         const dialog=el('dialog','confirm-dialog'), heading=el('h2','',title), actions=el('div','dialog-actions');
         const input=el('input');input.value=initial || '';input.setAttribute('aria-label','方案名称');input.maxLength=100;
         let value=null;
-        actions.append(button('取消',()=>dialog.close()),button(destructive?'删除':'保存',()=>{if(!destructive&&!input.value.trim())return;value=destructive?true:input.value.trim();dialog.close();}));
+        actions.append(button('取消',()=>dialog.close()),button(confirmLabel||(destructive?'删除':'保存'),()=>{if(!destructive&&!input.value.trim())return;value=destructive?true:input.value.trim();dialog.close();}));
         dialog.append(heading);if(!destructive)dialog.append(input);dialog.append(actions);document.body.append(dialog);
         dialog.addEventListener('close',()=>{dialog.remove();resolve(value);});dialog.showModal();if(!destructive)input.focus();
     });
