@@ -18,7 +18,7 @@ const server = http.createServer(async (req,res) => {
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
     if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>{if(window.testSourceGate){window.sourceWaiting=true;await window.testSourceGate;}return {entries:{1:{uid:1,constant:true,comment:'森林',content:'森林里住着精灵。',disable:false}}};};");return;}
     if(req.url==='/api/secrets/read'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({api_key_custom:[{id:'s1',active:true}]}));return;}
-    if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);if(plannerRequest.stream){res.setHeader('Content-Type','text/event-stream');for(const content of ['<Think>','本轮测试规划','</Think>'])res.write('data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\n');res.end('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n');return;}res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;}
+    if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);if(plannerRequest.stream){res.setHeader('Content-Type','application/json');for(const content of ['<Think>','本轮测试规划','</Think>'])res.write('data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\n');res.end('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n');return;}res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;}
     if(req.url==='/script.js'){res.setHeader('Content-Type','text/javascript');res.end('export const getRequestHeaders=()=>({});export const stopGeneration=()=>{};export const saveSettings=async()=>{window.saved++;localStorage.setItem("test-settings",JSON.stringify(window.context.extensionSettings));};');return;}
     const target=path.resolve(servingRoot,'.'+decodeURIComponent(req.url.split('?')[0]));
     if(!target.startsWith(servingRoot+path.sep)){res.writeHead(403).end();return;}
@@ -38,7 +38,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.7$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.8$/);
  // A stuck source read must never block closing the panel.
  await page.evaluate(()=>{window.testSourceGate=new Promise(resolve=>window.releaseSource=resolve);});
  await frame.getByRole('button',{name:'刷新资料',exact:true}).click();
