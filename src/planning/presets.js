@@ -13,6 +13,7 @@ export function resolvePreset(snapshot, selection = {}) {
     const ungrouped = { id: '', name: '未分组', enabled: true, entries: [] };
     const entries = new Map((preset.prompts || []).map(x => [x.identifier, x]));
     const execution = [];
+    const display = [], displayedGroups = new Set();
     for (const item of order) {
         const source = entries.get(item.identifier);
         if (!source) { diagnostics.push({code:'missing-prompt',message:`预设顺序引用不存在的条目 ${item.identifier}。`,blocking:true}); continue; }
@@ -20,10 +21,15 @@ export function resolvePreset(snapshot, selection = {}) {
         const group = groups.find(g => g.id === groupId) || ungrouped;
         const entry = { ...structuredClone(source), enabled: selection.promptOverrides?.[item.identifier] ?? item.enabled ?? false, groupId: group.id };
         group.entries.push(entry);
+        if (!group.id) display.push({ type: 'prompt', entry });
+        else if (!displayedGroups.has(group.id)) {
+            displayedGroups.add(group.id);
+            display.push({ type: 'group', group });
+        }
         if (entry.enabled && group.enabled) execution.push(entry);
     }
     for (const key of Object.keys(selection.promptOverrides || {})) if (!entries.has(key)) diagnostics.push({code:'missing-entry',message:`旧方案条目 ${key} 已删除，不再套用开关。`});
     if (ungrouped.entries.length) groups.push(ungrouped);
     for (const group of groups) { group.checked = group.enabled && group.entries.every(e => e.enabled); group.partial = group.enabled && !group.checked && group.entries.some(e => e.enabled); }
-    return { id, execution, groups, diagnostics };
+    return { id, execution, groups, display, diagnostics };
 }

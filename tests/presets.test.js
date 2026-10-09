@@ -12,3 +12,12 @@ test('visual groups never reorder prompt execution and switches remain private',
     assert.deepEqual(preset,before);
     assert.deepEqual(resolvePreset(snapshot,{presetId:'P'}).execution.map(x=>x.identifier),['a','b']);
 });
+
+test('BaiBai display follows first member in native order, retaining loose entries in place',()=>{
+    const ids=['loose','b','a','middle','b2'];
+    const preset={prompts:ids.map(identifier=>({identifier})),prompt_order:[{character_id:100001,order:ids.map(identifier=>({identifier,enabled:true}))}],extensions:{baibaiToolkit:{presetPromptGroups:{groups:[{id:'A',order:0},{id:'B',order:1}],prompts:{a:{groupId:'A'},b:{groupId:'B'},b2:{groupId:'B'}}}}}};
+    const view=resolvePreset({presets:{P:preset},currentPreset:'P'});
+    assert.deepEqual(view.display.map(x=>x.type==='group'?x.group.id:x.entry.identifier),['loose','B','A','middle']);
+    assert.deepEqual(view.display[1].group.entries.map(x=>x.identifier),['b','b2']);
+    assert.deepEqual(view.execution.map(x=>x.identifier),ids);
+});

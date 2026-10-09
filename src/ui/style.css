@@ -24,3 +24,15 @@ footer{padding-top:10px;border-top:1px solid var(--SmartThemeBorderColor,var(--l
 .detail-dialog,.confirm-dialog{border-radius:18px;box-shadow:0 16px 45px #101d3533}
 @media(pointer:coarse){.header-actions button{width:42px;min-height:42px}.scheme-bar .icon{width:36px;min-height:36px}.entry-row button{width:32px;height:32px}.footer-actions button{min-height:36px}}
 @media(prefers-reduced-motion:reduce){.header-actions button{transition:none}}
+
+/* 参考图的轻边框布局：完整窗口裁切，含页首和页尾，不只修饰内容卡片。 */
+html,body{border-radius:14px;overflow:hidden;clip-path:inset(0 round 14px)}
+header{background:transparent;padding:15px 16px 12px}
+.header-actions button{background:transparent;border-radius:9px}
+#tabs{background:transparent;border:0;border-bottom:1px solid var(--SmartThemeBorderColor,var(--line));border-radius:0;padding:0;gap:0}
+#tabs button{border-radius:8px 8px 0 0}
+#tabs button[aria-selected=true]{background:transparent;box-shadow:none;border-bottom:2px solid var(--accent)}
+.card,.scheme-bar{background:color-mix(in srgb,var(--SmartThemeBlurTintColor,var(--bg)) 98%,var(--accent) 2%);border-radius:12px;box-shadow:0 2px 9px #142d5305}
+.entry-row{background:var(--SmartThemeBlurTintColor,var(--bg));border-radius:9px}
+footer{background:transparent;border-top:0;border-radius:0 0 14px 14px}
+main>.entry-row{margin-bottom:10px}

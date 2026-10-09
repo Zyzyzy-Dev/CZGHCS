@@ -1,6 +1,6 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, select, section, detail, ask } from './components.js';
-import { entryKey } from '../planning/world-info.js';
+import { el, button, field, check, select, section, detail, ask } from './components.js?v=0.4.0-dev.4';
+import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.4';
 export function renderView(root, state, ui, act) {
     const s=state.settings, selection=s.selection;
     root.replaceChildren();
@@ -41,7 +41,7 @@ export function renderView(root, state, ui, act) {
         root.append(section('高级设置',advanced,true));
     } else if(ui.page==='preset') {
         const bar=toolbar('preset');const chooser=el('div','preset-choice');chooser.append(el('span','muted','选择预设'),select('选择预设',state.presets.map(id=>({id,name:id})),selection.presetId||state.preset?.id,id=>act('selection.update',{presetId:id,promptOverrides:{},groupOverrides:{}})));bar.append(chooser);root.append(bar);
-        for(const group of state.preset?.groups||[]){const content=el('div','section-body');content.append(check('启用 '+group.name,group.checked,async value=>{const promptOverrides={...selection.promptOverrides};for(const entry of group.entries)promptOverrides[entry.identifier]=value;await act('selection.update',{promptOverrides,groupOverrides:group.id?{...selection.groupOverrides,[group.id]:value}:selection.groupOverrides});},group.partial));for(const entry of group.entries)content.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));root.append(section(group.name,content,group.collapsed));}
+        for(const item of state.preset?.display||[]){if(item.type==='prompt'){const entry=item.entry;root.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));continue;}const group=item.group;const content=el('div','section-body');content.append(check('启用 '+group.name,group.checked,async value=>{const promptOverrides={...selection.promptOverrides};for(const entry of group.entries)promptOverrides[entry.identifier]=value;await act('selection.update',{promptOverrides,groupOverrides:group.id?{...selection.groupOverrides,[group.id]:value}:selection.groupOverrides});},group.partial));for(const entry of group.entries)content.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));root.append(section(group.name,content,group.collapsed));}
     } else {
         root.append(toolbar('world'));
         const bindings=[['全局世界书',state.bindings.global],['角色世界书',state.bindings.character],['聊天世界书',state.bindings.chat],['用户角色世界书',state.bindings.persona],['插件开启的世界书',selection.extraBooks]];

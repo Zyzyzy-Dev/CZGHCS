@@ -1,15 +1,15 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData } from '../planning/schemes.js';
-import { createApiSchemes } from './api-schemes.js';
-import { captureSources } from './sources.js';
-import { resolvePreset } from '../planning/presets.js';
-import { adapters } from '../planning/compatibility.js';
-import { buildPlanningContext } from '../planning/context.js';
-import { cleanSettings } from '../bridge/protocol.js';
-import { materializePluginMacros } from './plugin-macros.js';
-import { freezeCurrentRequest } from '../planning/current-request.js';
-import { createCredentialStore } from './credential-store.js';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js';
+import { migrateSchemes, applySchemeOperation, assertSafeData } from '../planning/schemes.js?v=0.4.0-dev.4';
+import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.4';
+import { captureSources } from './sources.js?v=0.4.0-dev.4';
+import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.4';
+import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.4';
+import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.4';
+import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.4';
+import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.4';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.4';
+import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.4';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.4';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;

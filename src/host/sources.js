@@ -1,5 +1,5 @@
 /* 只读来源快照：预设、角色、聊天、世界书及本轮插件注入；异步期间检查聊天身份。 */
-import { createId } from '../bridge/id.js';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.4';
 function freeze(value) {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); Object.values(value).forEach(freeze); }
     return value;

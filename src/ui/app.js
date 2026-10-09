@@ -1,8 +1,8 @@
 /* iframe 工作台：通过受限 RPC 驱动视图，独立主题与导航，不访问宿主 DOM。 */
-import { createId } from '../bridge/id.js';
-import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js';
-import { button, el } from './components.js';
-import { renderView } from './views.js';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.4';
+import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js?v=0.4.0-dev.4';
+import { button, el } from './components.js?v=0.4.0-dev.4';
+import { renderView } from './views.js?v=0.4.0-dev.4';
 const pending=new Map();let state;
 const ui={page:'preset',previous:'preset',scheme:{},apiDraft:{},models:[]};
 const app=document.querySelector('#app'),tabs=document.querySelector('#tabs'),status=document.querySelector('#status');
