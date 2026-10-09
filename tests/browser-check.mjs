@@ -40,7 +40,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.11$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.12$/);
  // A stuck source read must never block closing the panel.
  await page.evaluate(()=>{window.testSourceGate=new Promise(resolve=>window.releaseSource=resolve);});
  await frame.getByRole('button',{name:'关闭',exact:true}).click();
@@ -56,7 +56,7 @@ try{
  await frame.getByRole('button',{name:'规划预览',exact:true}).click();
  await frame.getByRole('heading',{name:'本轮规划预览',exact:true}).waitFor();
  assert.equal(await frame.locator('#app').isVisible(),false);
- await frame.getByRole('button',{name:'返回资料',exact:true}).click();
+ await frame.getByRole('button',{name:'规划预览',exact:true}).click();
  await frame.getByRole('button',{name:'设置',exact:true}).click();
  await frame.getByLabel('启用创作规划',{exact:true}).check();
  await frame.getByLabel('流式生成规划',{exact:true}).check();
@@ -106,6 +106,8 @@ try{
  const presetScheme=await frame.getByLabel('预设方案',{exact:true}).inputValue();assert.ok(presetScheme);
  await frame.getByRole('switch',{name:'写作规则',exact:true}).click();await frame.getByText('改动未保存',{exact:true}).waitFor();
  assert.equal(await frame.getByLabel('预设方案',{exact:true}).inputValue(),presetScheme);
+ assert.equal(await frame.getByRole('button',{name:'覆盖方案',exact:true}).isEnabled(),true);
+ assert.equal(await frame.getByRole('button',{name:'删除方案',exact:true}).isEnabled(),true);
  await frame.getByRole('button',{name:'覆盖方案',exact:true}).click();await frame.getByRole('button',{name:'保存',exact:true}).click();await frame.getByText('改动已保存',{exact:true}).waitFor();
  await frame.getByRole('tab',{name:'世界书',exact:true}).click();
  assert.equal(await frame.getByRole('switch',{name:'森林',exact:true}).isVisible(),false);
@@ -189,6 +191,8 @@ try{
  return {data,record:context.chat[1].extra.czghCreativePlanning?.[0],saved:window.chatSaved};
  })();});
  await floor.getByText('· 正在生成',{exact:true}).waitFor();
+ assert.equal(await floor.locator('#cancel').getAttribute('data-icon'),'pause');
+ assert.equal(await frame.locator('#cancel').getAttribute('data-icon'),'pause');
  await floor.getByText('<Think>本轮测试规划',{exact:true}).waitFor();
  assert.equal(await floor.locator('details').evaluate(el=>el.open),true);
  assert.equal(await page.evaluate(()=>context.chat.length),1);
@@ -219,6 +223,7 @@ try{
  await secondFloor.getByText('· 等待规划开始',{exact:true}).waitFor();
  await secondFloor.getByRole('button',{name:'停止本轮',exact:true}).click();
  await secondFloor.getByText('· 已停止',{exact:true}).waitFor();
+ assert.equal(await secondFloor.locator('#cancel').getAttribute('data-icon'),'stop');
  assert.equal(await page.evaluate(()=>window.stopCount),1);
  const second=await page.evaluate(async()=>{
      for(const fn of listeners.started||[])await fn('normal');
@@ -241,6 +246,7 @@ try{
  await secondFloor.getByText('· 正在生成',{exact:true}).waitFor();
  await secondFloor.getByRole('button',{name:'停止本轮',exact:true}).click();
  await secondFloor.getByText('· 已停止',{exact:true}).waitFor();
+ assert.equal(await secondFloor.locator('#cancel').getAttribute('data-icon'),'stop');
  const cancelled=await page.evaluate(()=>window.cancelGeneration);assert.equal(cancelled.messages.length,1);
  releaseStream();streamGate=null;
  await page.locator('#czgh-planner-menu').click();

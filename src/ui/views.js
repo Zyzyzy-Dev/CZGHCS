@@ -1,7 +1,7 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.11';
-import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.11';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.11';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.12';
+import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.12';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.12';
 export function renderView(root, state, ui, act) {
     const s=state.settings, selection=s.selection;
     root.replaceChildren();
@@ -18,10 +18,10 @@ export function renderView(root, state, ui, act) {
         });
         chooser.options[0].disabled=true;chooser.options[0].hidden=true;bar.append(chooser);
         bar.append(button('新建方案',async()=>{const name=await ask('新建方案','');if(name)await act('scheme.save',{kind,name});},'+'));
-        const overwrite=button('覆盖方案',async()=>{const item=options.find(x=>x.id===selected);if(!item?.id)return;const name=await ask('覆盖方案',item.name);if(name)await act('scheme.save',{kind,id:item.id,name});},'↥');overwrite.disabled=!s.schemes[kind].some(x=>x.id===selected);bar.append(overwrite);
-        const remove=button('删除方案',async()=>{if(await ask('删除选中的方案？','',true)){await act('scheme.remove',{kind,id:selected});}},'⌫');remove.disabled=!s.schemes[kind].some(x=>x.id===selected);bar.append(remove);return bar;
+        const overwrite=button('覆盖方案',async()=>{const item=options.find(x=>x.id===selected);if(!item?.id)return;const name=await ask('覆盖方案',item.name);if(name)await act('scheme.save',{kind,id:item.id,name});},'↥');overwrite.disabled=!s.schemes[kind].some(x=>x.id===selected);if(overwrite.disabled)overwrite.title='请先选择已保存的方案；当前酒馆来源不能覆盖';bar.append(overwrite);
+        const remove=button('删除方案',async()=>{if(await ask('删除选中的方案？','',true)){await act('scheme.remove',{kind,id:selected});}},'⌫');remove.disabled=!s.schemes[kind].some(x=>x.id===selected);if(remove.disabled)remove.title='请先选择已保存的方案；当前酒馆来源不能删除';bar.append(remove);return bar;
     };
-    const saveHint=kind=>{const x=schemeSelectionState(s,kind);const hint=el('p','save-hint',x.dirty?'改动未保存':x.id?'改动已保存':'');hint.setAttribute('role','status');return hint;};
+    const saveHint=kind=>{const x=schemeSelectionState(s,kind);const hint=el('p','save-hint',x.dirty?'改动未保存':x.id?'改动已保存':'');hint.setAttribute('role','status');if(!x.id&&x.dirty)hint.append(el('span','save-help',' · 点击＋新建方案'));return hint;};
     const change=(key,id,value)=>act('selection.update',{[key]:{...selection[key],[id]:value}});
     const row=(label,content,checked,toggle)=>{const node=el('div','entry-row');const open=button('查看 '+label,()=>detail(label,content));open.textContent=label;open.className='entry-open';node.append(open,toggleSwitch(label,checked,toggle));node.addEventListener('click',event=>{if(event.target===node)detail(label,content);});return node;};
     if(ui.page==='settings'){

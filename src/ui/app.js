@@ -1,10 +1,12 @@
 /* iframe 工作台：通过受限 RPC 驱动视图，独立主题与导航，不访问宿主 DOM。 */
-import { createId } from '../bridge/id.js?v=0.4.0-dev.11';
-import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js?v=0.4.0-dev.11';
-import { button, el } from './components.js?v=0.4.0-dev.11';
-import { renderView } from './views.js?v=0.4.0-dev.11';
-import { setIcon, appearanceIcon } from './icons.js?v=0.4.0-dev.11';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.12';
+import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js?v=0.4.0-dev.12';
+import { button, el } from './components.js?v=0.4.0-dev.12';
+import { renderView } from './views.js?v=0.4.0-dev.12';
+import { setIcon, appearanceIcon, generationIcon } from './icons.js?v=0.4.0-dev.12';
 setIcon(document.querySelector('#settings'),'settings');
+setIcon(document.querySelector('#show-preview'),'preview');
+generationIcon(document.querySelector('#cancel'),false);
 const pending=new Map();let state;
 const ui={page:'preset',previous:'preset',scheme:{},apiDraft:{},models:[]};
 const app=document.querySelector('#app'),tabs=document.querySelector('#tabs'),status=document.querySelector('#status');
@@ -26,6 +28,7 @@ async function act(method,payload={},refresh=true) {
 function draw(){
     document.documentElement.dataset.appearance=state.settings.appearance||'auto';
     appearanceIcon(document.querySelector('#appearance'),state.settings.appearance||'auto');
+    document.querySelector('#show-preview').setAttribute('aria-pressed',String(ui.page==='preview'));
     tabs.hidden=['settings','preview'].includes(ui.page);
     app.hidden=ui.page==='preview';
     document.querySelector('#preview-page').hidden=ui.page!=='preview';
@@ -39,8 +42,8 @@ document.querySelector('#settings').addEventListener('click',()=>{if(ui.page==='
 document.querySelector('#appearance').addEventListener('click',()=>{parent.postMessage({channel:CHANNEL,type:'appearance'},location.origin);});
 const closePanel=()=>parent.postMessage({channel:CHANNEL,type:'close'},location.origin);
 document.querySelector('#close').addEventListener('click',closePanel);
-document.querySelector('#show-preview').addEventListener('click',()=>{ui.previewPrevious=ui.page==='preview'?ui.previewPrevious:ui.page;ui.page='preview';if(state)draw();});
-document.querySelector('#preview-back').addEventListener('click',()=>{ui.page=ui.previewPrevious||'preset';if(state)draw();});
+document.querySelector('#show-preview').addEventListener('click',()=>{if(ui.page==='preview')ui.page=ui.previewPrevious||'preset';else{ui.previewPrevious=ui.page;ui.page='preview';}if(state)draw();});
+
 document.querySelector('#cancel').addEventListener('click',()=>parent.postMessage({channel:CHANNEL,type:'cancel'},location.origin));
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!document.querySelector('dialog[open]'))closePanel();});
 window.addEventListener('message',event=>{
@@ -48,7 +51,7 @@ window.addEventListener('message',event=>{
     const data=event.data;
     if(data.type==='response') {const request=pending.get(data.requestId);if(!request)return;clearTimeout(request.timer);pending.delete(data.requestId);data.ok?request.resolve(data.result):request.reject(Error(data.error||'操作失败。'));}
     else if(data.type==='theme')for(const key of THEME_KEYS){const value=data.payload?.[key];if(typeof value==='string'){if(value)document.documentElement.style.setProperty(key,value);else document.documentElement.style.removeProperty(key);}}
-    else if(data.type==='state'){status.classList.remove('error');status.textContent=data.payload.status||'';document.querySelector('#preview').textContent=data.payload.preview||'';}
+    else if(data.type==='state'){generationIcon(document.querySelector('#cancel'),data.payload.busy);status.classList.remove('error');status.textContent=data.payload.status||'';document.querySelector('#preview').textContent=data.payload.preview||'';}
     else if(data.type==='appearance'){document.documentElement.dataset.appearance=data.payload;appearanceIcon(document.querySelector('#appearance'),data.payload);if(state)state.settings.appearance=data.payload;}
     else if(data.type==='refresh')act('sources.refresh');
 });

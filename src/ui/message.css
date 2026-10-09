@@ -8,3 +8,8 @@ summary{position:relative;padding-right:42px;min-height:40px}#cancel{position:ab
 summary{padding-right:78px}#appearance{position:absolute;right:40px;top:3px;width:34px;height:32px;border:0;border-radius:7px;background:transparent;color:inherit;cursor:pointer}button svg{display:block;margin:auto;pointer-events:none}#appearance:hover{background:#80808022}
 :root[data-appearance=light]{--SmartThemeBodyColor:#23314c!important;--SmartThemeBlurTintColor:#fcfdff!important;--SmartThemeBorderColor:#dce7f7!important}
 :root[data-appearance=dark]{color-scheme:dark;--SmartThemeBodyColor:#e6edfb!important;--SmartThemeBlurTintColor:#171d29!important;--SmartThemeBorderColor:#354158!important}
+
+/* 生成中双竖条呼吸提示，停止后恢复静态方块。 */
+.is-generating svg{animation:planning-breathe 1.4s ease-in-out infinite;color:#3779fa}
+@keyframes planning-breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.48;transform:scale(.88)}}
+@media(prefers-reduced-motion:reduce){.is-generating svg{animation:none}}

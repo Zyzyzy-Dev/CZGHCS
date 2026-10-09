@@ -1,6 +1,6 @@
 /* 楼内规划视图：安全文本渲染、五项主题接收以及高度上报。 */
-import {CHANNEL,THEME_KEYS,acceptsMessage} from '../bridge/protocol.js?v=0.4.0-dev.11';
-import { appearanceIcon } from './icons.js?v=0.4.0-dev.11';
+import {CHANNEL,THEME_KEYS,acceptsMessage} from '../bridge/protocol.js?v=0.4.0-dev.12';
+import { appearanceIcon, generationIcon } from './icons.js?v=0.4.0-dev.12';
 appearanceIcon(document.querySelector('#appearance'));
 const details=document.querySelector('details');
 const resize=()=>parent.postMessage({channel:CHANNEL,type:'height',payload:document.body.scrollHeight+4},location.origin);
@@ -12,6 +12,7 @@ window.addEventListener('message',event=>{
     if(type==='appearance'||type==='plan'){const mode=type==='plan'?payload.appearance||'auto':payload;document.documentElement.dataset.appearance=mode;appearanceIcon(document.querySelector('#appearance'),mode);}
     if(type==='plan') {
         const record=payload.record;
+        generationIcon(document.querySelector('#cancel'),['waiting','preparing','streaming'].includes(record.phase));
         document.querySelector('#cancel').disabled=!['waiting','preparing','streaming'].includes(record.phase);
         const labels={waiting:'等待规划开始',preparing:'正在准备资料',streaming:'正在生成',error:'生成失败',cancelled:'已停止',skipped:'本轮未生成规划'};
         document.querySelector('#phase').textContent=record.phase?`· ${labels[record.phase]||record.phase}`:'';
