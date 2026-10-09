@@ -1,7 +1,8 @@
 /* 界面基础控件：安全文本节点、图标按钮、字段、分组和本地对话框。 */
+import { setIcon } from './icons.js?v=0.4.0-dev.11';
 export function el(tag, className = '', text = '') { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; }
 export function button(label, action, icon) {
-    const node = el('button', icon ? 'icon' : '', icon || label); node.type = 'button'; node.title = label; node.setAttribute('aria-label', label); node.addEventListener('click', action); return node;
+    const node = el('button', icon ? 'icon' : '', icon || label); node.type = 'button'; node.title = label; node.setAttribute('aria-label', label); node.addEventListener('click', action); if(icon==='↥')setIcon(node,'edit');if(icon==='⌫'){setIcon(node,'trash');node.classList.add('danger-icon');}return node;
 }
 export function select(label, options, value, change) {
     const node = el('select'); node.setAttribute('aria-label', label);

@@ -54,3 +54,19 @@ main>.entry-row{margin-bottom:10px}
 
 /* 世界书标题行独立折叠；右侧开关点击不会展开或收起。 */
 .book-heading{list-style:none;cursor:pointer}.book-heading:after{display:none}.book-heading::-webkit-details-marker{display:none}.book:not([open])>.book-heading{margin-bottom:0}
+
+/* 紧凑导航与独立规划预览，保存状态不占用底部工具栏。 */
+[hidden]{display:none!important}
+header{gap:6px}.header-actions{gap:2px}.header-actions button{width:32px;min-height:34px}
+.header-actions #cancel{font-size:14px}.header-actions #show-preview{font-size:20px}
+#tabs{margin-bottom:8px}#tabs button{min-height:30px;padding:5px}
+.scheme-bar{padding:6px 8px;gap:4px;margin-bottom:0}.scheme-bar select{min-height:30px;padding:3px 7px}
+.scheme-bar .icon{min-height:30px;height:30px}.preset-choice{gap:6px}
+.save-hint{font-size:10px;line-height:16px;min-height:16px;margin:2px 3px 5px;color:var(--muted)}
+#preview-page{flex:1;min-height:0;overflow:auto;padding:0 14px 14px}.preview-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.preview-heading h2{margin:0;font-size:14px}
+#preview{max-height:none;overflow:visible;margin:0}#preview:empty:before{content:'暂无本轮规划';color:var(--muted)}
+footer:has(#status:empty){display:none}
+@media(max-width:340px){header{padding:10px}.header-actions button{width:28px}h1{font-size:15px}}
+
+/* SVG 图标统一笔画，删除按钮使用低饱和红色。 */
+button svg{display:block;margin:auto;pointer-events:none}.danger-icon{color:#b85b58}

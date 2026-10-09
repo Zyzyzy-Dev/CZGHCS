@@ -79,6 +79,8 @@ test('preset planning contract migrates previous defaults but preserves custom i
     assert.equal(migrateSettings({plannerInstruction:'我的补充要求'}).plannerInstruction,'我的补充要求');
     const message=planningMessages([],{...config,plannerInstruction:'我的补充要求'}).at(-1).content;
     assert.match(message,/不得新增预设未要求/);
+    assert.match(message,/不得因本阶段仅输出规划而跳过资料读取或召回/);
+    assert.doesNotMatch(message,/不输出规划区块之外的正文、顶栏、状态栏/);
     assert.match(message,/预写片段/);
     assert.match(message,/不得省略、合并/);
     assert.match(message,/<Abstract>/);

@@ -17,10 +17,10 @@ let plannerRequest, releaseStream;
 let streamGate;
 const server = http.createServer(async (req,res) => {
     if(req.url==='/'){res.setHeader('Content-Type','text/html');res.end(host);return;}
-    if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>{if(window.testSourceGate){window.sourceWaiting=true;await window.testSourceGate;}return {entries:{1:{uid:1,constant:true,comment:'森林',content:'森林里住着精灵。',disable:false}}};};");return;}
+    if(req.url==='/scripts/world-info.js'){res.setHeader('Content-Type','text/javascript');res.end("export const world_names=['设定集'];export const selected_world_info=['设定集'];export const world_info={};export const getWorldInfoSettings=()=>({});export const loadWorldInfo=async()=>{if(window.testSourceGate){window.sourceWaiting=true;await window.testSourceGate;}return {entries:{1:{uid:1,constant:true,comment:'森林',content:window.worldContent||'森林里住着精灵。',disable:false}}};};");return;}
     if(req.url==='/api/secrets/read'){res.setHeader('Content-Type','application/json');res.end(JSON.stringify({api_key_custom:[{id:'s1',active:true}]}));return;}
     if(req.url==='/api/backends/chat-completions/generate'){let raw='';for await(const chunk of req)raw+=chunk;plannerRequest=JSON.parse(raw);if(plannerRequest.stream){res.setHeader('Content-Type','application/json');for(const content of ['<Think>','本轮测试规划','</Think>']){res.write('data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\n');if(content==='本轮测试规划' && streamGate)await streamGate;}res.end('data: '+JSON.stringify({choices:[{delta:{},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n');return;}res.setHeader('Content-Type','application/json');res.end(JSON.stringify({choices:[{message:{content:'<Think>本轮测试规划</Think>'},finish_reason:'stop'}]}));return;}
-    if(req.url==='/script.js'){res.setHeader('Content-Type','text/javascript');res.end('export const getRequestHeaders=()=>({});export const stopGeneration=()=>{};export const saveSettings=async()=>{window.saved++;localStorage.setItem("test-settings",JSON.stringify(window.context.extensionSettings));};');return;}
+    if(req.url==='/script.js'){res.setHeader('Content-Type','text/javascript');res.end('export const getRequestHeaders=()=>({});export const stopGeneration=()=>{window.stopCount=(window.stopCount||0)+1;};export const saveSettings=async()=>{window.saved++;localStorage.setItem("test-settings",JSON.stringify(window.context.extensionSettings));};');return;}
     const target=path.resolve(servingRoot,'.'+decodeURIComponent(req.url.split('?')[0]));
     if(!target.startsWith(servingRoot+path.sep)){res.writeHead(403).end();return;}
     try{res.setHeader('Content-Type',target.endsWith('.js')?'text/javascript':target.endsWith('.css')?'text/css':'text/html');res.end(await fs.readFile(target));}catch{res.writeHead(404).end();}
@@ -36,18 +36,27 @@ try{
  await page.locator('#czgh-planner-menu').click();
  const frame=page.frameLocator('iframe[title="创作规划"]');
  await frame.getByRole('heading',{name:'创作规划'}).waitFor();
+ assert.equal(await frame.locator('#settings svg').count(),1);
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.10$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.11$/);
  // A stuck source read must never block closing the panel.
  await page.evaluate(()=>{window.testSourceGate=new Promise(resolve=>window.releaseSource=resolve);});
- await frame.getByRole('button',{name:'刷新资料',exact:true}).click();
+ await frame.getByRole('button',{name:'关闭',exact:true}).click();
+ await page.locator('#czgh-planner-menu').click();
  await page.waitForFunction(()=>window.sourceWaiting===true);
  await frame.getByRole('button',{name:'关闭',exact:true}).click();
  await page.waitForFunction(()=>!document.querySelector('#czgh-planner-container').open,{},{timeout:2000});
  await page.evaluate(()=>{window.releaseSource();window.testSourceGate=null;});
  await page.locator('#czgh-planner-menu').click();
+ assert.equal(await frame.getByRole('button',{name:'刷新资料',exact:true}).count(),0);
+ assert.equal(await frame.getByLabel('预设方案',{exact:true}).inputValue(),'');
+ assert.equal(await frame.getByLabel('预设方案',{exact:true}).locator('option[value=""]').evaluate(el=>el.hidden&&el.disabled),true);
+ await frame.getByRole('button',{name:'规划预览',exact:true}).click();
+ await frame.getByRole('heading',{name:'本轮规划预览',exact:true}).waitFor();
+ assert.equal(await frame.locator('#app').isVisible(),false);
+ await frame.getByRole('button',{name:'返回资料',exact:true}).click();
  await frame.getByRole('button',{name:'设置',exact:true}).click();
  await frame.getByLabel('启用创作规划',{exact:true}).check();
  await frame.getByLabel('流式生成规划',{exact:true}).check();
@@ -59,6 +68,8 @@ try{
  await frame.getByLabel('API 方案',{exact:true}).selectOption('external:p1');
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.apiSelection==='external:p1');
  assert.equal(await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).isDisabled(),true);
+ assert.equal(await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).getAttribute('data-icon'),'edit');
+ assert.equal(await frame.getByRole('button',{name:'删除 API 方案',exact:true}).getAttribute('data-icon'),'trash');
  await frame.getByRole('button',{name:'新建 API 方案',exact:true}).click();await frame.getByLabel('方案名称',{exact:true}).fill('独立 API');await frame.getByRole('button',{name:'保存',exact:true}).click();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.api.length===1);
  assert.equal(await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).isDisabled(),false);
@@ -90,6 +101,12 @@ try{
  await frame.getByRole('button',{name:'载入',exact:true}).click();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.promptOverrides.main===true);
  assert.equal(await frame.getByRole('button',{name:'覆盖方案',exact:true}).isDisabled(),true);
+ await frame.getByRole('button',{name:'新建方案',exact:true}).click();await frame.getByLabel('方案名称',{exact:true}).fill('记忆预设方案');await frame.getByRole('button',{name:'保存',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.preset.length===1);
+ const presetScheme=await frame.getByLabel('预设方案',{exact:true}).inputValue();assert.ok(presetScheme);
+ await frame.getByRole('switch',{name:'写作规则',exact:true}).click();await frame.getByText('改动未保存',{exact:true}).waitFor();
+ assert.equal(await frame.getByLabel('预设方案',{exact:true}).inputValue(),presetScheme);
+ await frame.getByRole('button',{name:'覆盖方案',exact:true}).click();await frame.getByRole('button',{name:'保存',exact:true}).click();await frame.getByText('改动已保存',{exact:true}).waitFor();
  await frame.getByRole('tab',{name:'世界书',exact:true}).click();
  assert.equal(await frame.getByRole('switch',{name:'森林',exact:true}).isVisible(),false);
  await frame.locator('.book-heading').click({position:{x:35,y:20}});
@@ -104,9 +121,16 @@ try{
  await frame.getByRole('button',{name:'新建方案',exact:true}).click();await frame.getByLabel('方案名称',{exact:true}).fill('测试方案');await frame.getByRole('button',{name:'保存',exact:true}).click();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.world.length===1);
  assert.ok(await frame.getByLabel('世界书方案',{exact:true}).inputValue());
+ await frame.getByRole('switch',{name:'森林',exact:true}).click();await frame.getByText('改动未保存',{exact:true}).waitFor();
+ await page.evaluate(()=>window.worldContent='资料已更新');
+ await frame.getByRole('button',{name:'覆盖方案',exact:true}).click();await frame.getByRole('button',{name:'保存',exact:true}).click();await frame.getByText('改动已保存',{exact:true}).waitFor();
+ await frame.getByRole('button',{name:'查看 森林',exact:true}).click();assert.equal(await frame.locator('.entry-content').textContent(),'资料已更新');await frame.getByRole('button',{name:'关闭详情',exact:true}).click();
+
  await frame.getByRole('button',{name:'删除方案',exact:true}).click();await frame.getByRole('button',{name:'删除',exact:true}).click();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.world.length===0);
  assert.equal(await frame.getByRole('button',{name:'覆盖方案',exact:true}).isDisabled(),true);
+ await frame.getByLabel('世界书方案',{exact:true}).selectOption('@current');await frame.getByRole('button',{name:'载入',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemeSelection.world==='@current');
  if (process.env.SCREENSHOT_DIR) await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'iframe-desktop.png')});
  await page.setViewportSize({width:390,height:844});
  if (process.env.SCREENSHOT_DIR) await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'iframe-mobile.png')});
@@ -128,6 +152,8 @@ try{
  await frame.getByRole('button',{name:'关闭',exact:true}).click();await page.locator('#czgh-planner-menu').click();
  assert.equal(await frame.getByLabel('API 方案',{exact:true}).inputValue(),selected);
  await page.reload();await page.locator('#czgh-planner-menu').click();
+ await frame.getByLabel('预设方案',{exact:true}).waitFor();assert.equal(await frame.getByLabel('预设方案',{exact:true}).inputValue(),presetScheme);
+ await frame.getByRole('tab',{name:'世界书',exact:true}).click();assert.equal(await frame.getByLabel('世界书方案',{exact:true}).inputValue(),'@current');
  await frame.getByRole('button',{name:'设置',exact:true}).click();
  await frame.getByLabel('API 方案',{exact:true}).waitFor();
  assert.equal(await frame.getByLabel('API 方案',{exact:true}).inputValue(),selected);
@@ -138,8 +164,18 @@ try{
  context.chat=[{is_user:true,mes:'真实用户输入'}];const user=document.createElement('div');user.className='mes';user.setAttribute('mesid','0');user.innerHTML='<div class="mes_block"></div>';document.body.append(user);
  for(const fn of listeners['user-render']||[])await fn(0);
  });
- const floor=page.frameLocator('iframe[title="本楼创作规划"]');
+ const floor=page.frameLocator('.mes[mesid="0"] iframe[title="本楼创作规划"]');
  await floor.getByText('· 等待规划开始',{exact:true}).waitFor();
+ await page.evaluate(()=>{context.extensionSettings.czgh_external_planner.appearance='light';});
+ for(const mode of ['dark','auto','light']){
+     await floor.getByRole('button',{name:'切换外观',exact:true}).click();
+     await page.waitForFunction(mode=>context.extensionSettings.czgh_external_planner.appearance===mode,mode);
+     await floor.locator(`html[data-appearance=${mode}]`).waitFor();
+     assert.equal(await floor.locator('#appearance').getAttribute('data-icon'),mode);
+     assert.equal(await frame.locator('#appearance').getAttribute('data-icon'),mode);
+     assert.equal(await floor.locator('details').evaluate(el=>el.open),false);
+ }
+
  await floor.locator('summary').click();
  streamGate=new Promise(resolve=>releaseStream=resolve);
  await page.evaluate(()=>{window.testGeneration=(async()=>{
@@ -174,6 +210,45 @@ try{
  assert.equal(await floor.locator('body').evaluate(()=>window.bad),undefined);
  assert.equal(await page.evaluate(()=>context.chat[1].mes),'正文');
  await page.waitForFunction(()=>document.querySelector('iframe[title="本楼创作规划"]').getBoundingClientRect().height>42);
+ // A new user floor appears before request events, even when another listener delays them.
+ await page.evaluate(()=>{
+     context.chat.push({is_user:true,mes:'第二轮最新输入：打开窗户'});
+     const node=document.createElement('div');node.className='mes';node.setAttribute('mesid','2');node.innerHTML='<div class="mes_block"></div>';document.body.append(node);
+ });
+ const secondFloor=page.frameLocator('.mes[mesid="2"] iframe[title="本楼创作规划"]');
+ await secondFloor.getByText('· 等待规划开始',{exact:true}).waitFor();
+ await secondFloor.getByRole('button',{name:'停止本轮',exact:true}).click();
+ await secondFloor.getByText('· 已停止',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>window.stopCount),1);
+ const second=await page.evaluate(async()=>{
+     for(const fn of listeners.started||[])await fn('normal');
+     const data={type:'normal',stream:true,messages:[{role:'user',content:'第二轮最新输入：打开窗户'}]};
+     for(const fn of listeners.request||[])await fn(data);
+     context.chat.push({mes:'第二轮正文',swipe_id:0,extra:{},swipe_info:[{extra:{}}]});
+     const node=document.createElement('div');node.className='mes';node.setAttribute('mesid','3');node.innerHTML='<div class="mes_block"></div>';document.body.append(node);
+     for(const fn of listeners.received||[])await fn(3,'normal');
+     return context.chat[3].extra.czghCreativePlanning[0];
+ });
+ assert.equal(plannerRequest.messages.filter(m=>m.role==='user').at(-1).content,'第二轮最新输入：打开窗户');
+ assert.ok(JSON.stringify(plannerRequest.messages).includes('正文'));
+ assert.notEqual(second.requestId,generated.record.requestId);
+ assert.equal(await page.locator('iframe[title="本楼创作规划"]').count(),2);
+ await secondFloor.locator('summary').click();await secondFloor.getByText('<Think>\n本轮测试规划\n</Think>',{exact:true}).waitFor();
+ assert.match(await floor.locator('pre').textContent(),/<script>/);
+ if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'two-turns.png')});
+ streamGate=new Promise(resolve=>releaseStream=resolve);
+ await page.evaluate(()=>{window.cancelGeneration=(async()=>{const data={type:'regenerate',messages:[{role:'user',content:'取消测试'}]};for(const fn of listeners.request||[])await fn(data);return data;})();});
+ await secondFloor.getByText('· 正在生成',{exact:true}).waitFor();
+ await secondFloor.getByRole('button',{name:'停止本轮',exact:true}).click();
+ await secondFloor.getByText('· 已停止',{exact:true}).waitFor();
+ const cancelled=await page.evaluate(()=>window.cancelGeneration);assert.equal(cancelled.messages.length,1);
+ releaseStream();streamGate=null;
+ await page.locator('#czgh-planner-menu').click();
+ await frame.getByRole('button',{name:'规划预览',exact:true}).click();
+ assert.match(await frame.locator('#preview').textContent(),/本轮测试规划/);
+ if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'preview-mobile.png')});
+ await frame.getByRole('button',{name:'停止本轮',exact:true}).click();
+ await frame.getByRole('button',{name:'关闭',exact:true}).click();
  plannerRequest=null;
  const missingKey=await page.evaluate(async()=>{
      const settings=context.extensionSettings.czgh_external_planner;
@@ -185,8 +260,8 @@ try{
      return data;
  });
  assert.equal(plannerRequest,null);assert.equal(missingKey.messages.length,1);
- await floor.getByText('· 生成失败',{exact:true}).waitFor();
- assert.match(await floor.locator('pre').textContent(),/错误：/);
+ await secondFloor.getByText('· 生成失败',{exact:true}).waitFor();
+ assert.match(await secondFloor.locator('pre').textContent(),/错误：/);
  assert.deepEqual(errors,[]);
- console.log('PASS browser: iframe CSS isolation, five-token theme update, settings bridge, persistent key and API selection after reload, local authenticated generation, close, mobile bounds; no page errors.');
+ console.log('PASS browser: persistent preset/world/API selection, dirty/saved state, automatic source refresh, isolated preview, immediate user floor, two-turn latest input binding, streaming cancellation, CSS isolation and mobile bounds; no page errors.');
 }finally{releaseStream?.();await browser?.close();server.close();}

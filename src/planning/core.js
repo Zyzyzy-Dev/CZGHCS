@@ -92,7 +92,7 @@ export function parseRules(raw) {
 
 export function planningMessages(messages, settings) {
     return [...structuredClone(messages), { role: 'system', content:
-        `${settings.plannerInstruction}\n输出范围以预设指定的规划区块为准：逐项回答已启用步骤及子问题，不得省略、合并或用总括性结论代替后续步骤。条件不成立时只按预设要求跳过；资料缺失时说明缺失，不编造事实。保留预设明确要求放在规划内的例句、预写片段、格式确认及状态核算，但不输出规划区块之外的正文、顶栏、状态栏或时间戳成品。不得新增预设未要求的自我评价、总结、检查报告或结束宣言。\n结果必须仅包含一个完整区块：${settings.openTag}规划内容${settings.closeTag}。闭合标签后立即结束。` }];
+        `${settings.plannerInstruction}\n输出范围以预设指定的规划区块为准：逐项回答已启用步骤及子问题，不得省略、合并或用总括性结论代替后续步骤。条件不成立时只按预设要求跳过；资料缺失时说明缺失，不编造事实。包括预设要求的信息读取、召回、核算、例句、预写片段和格式确认。读取本次上下文中的已有资料，与生成新的成品分别处理；不得因本阶段仅输出规划而跳过资料读取或召回。不得新增预设未要求的自我评价、总结、检查报告或结束宣言。\n结果必须仅包含一个完整区块：${settings.openTag}规划内容${settings.closeTag}。闭合标签后立即结束。` }];
 }
 
 export function extractPlan(text, settings, finishReason) {

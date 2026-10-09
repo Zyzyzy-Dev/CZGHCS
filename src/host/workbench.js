@@ -1,15 +1,15 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData } from '../planning/schemes.js?v=0.4.0-dev.10';
-import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.10';
-import { captureSources } from './sources.js?v=0.4.0-dev.10';
-import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.10';
-import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.10';
-import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.10';
-import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.10';
-import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.10';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.10';
-import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.10';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.10';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.4.0-dev.11';
+import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.11';
+import { captureSources } from './sources.js?v=0.4.0-dev.11';
+import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.11';
+import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.11';
+import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.11';
+import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.11';
+import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.11';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.11';
+import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.11';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.11';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -99,6 +99,7 @@ export function createWorkbench({ context, headers, saveSettings }) {
                     state.selection.entryOverrides = {};
                     state.selection.extraBooks = [];
                 }
+                rememberScheme(state, payload.kind, '@current');
                 await write(state); source = fresh;
             } else if (method === 'scheme.save') {
                 if (!['preset','world'].includes(payload.kind)) throw new Error('无效方案类型。');
@@ -107,8 +108,13 @@ export function createWorkbench({ context, headers, saveSettings }) {
                     const item = state.schemes[payload.kind].find(s => s.id === payload.applyId);
                     if (!item) throw new Error('方案已不存在。');
                     for (const key of keys) state.selection[key] = structuredClone(item.payload[key]);
+                    rememberScheme(state, payload.kind, payload.applyId);
                     await write(state); source = null;
-                } else await write(applySchemeOperation(state, { kind: payload.kind, operation: payload.id ? 'overwrite' : 'create', id: payload.id, name: payload.name, payload: Object.fromEntries(keys.map(k => [k, state.selection[k]])) }));
+                } else {
+                    const next = applySchemeOperation(state, { kind: payload.kind, operation: payload.id ? 'overwrite' : 'create', id: payload.id, name: payload.name, payload: Object.fromEntries(keys.map(k => [k, state.selection[k]])) });
+                    rememberScheme(next, payload.kind, payload.id || next.schemes[payload.kind].at(-1).id);
+                    await write(next); source = null;
+                }
             } else if (method === 'scheme.remove') await write(applySchemeOperation(state, { kind: payload.kind, operation: 'delete', id: payload.id }));
             return snapshot();
         },

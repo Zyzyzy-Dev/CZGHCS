@@ -1,5 +1,7 @@
 /* 楼内规划视图：安全文本渲染、五项主题接收以及高度上报。 */
-import {CHANNEL,THEME_KEYS,acceptsMessage} from '../bridge/protocol.js?v=0.4.0-dev.10';
+import {CHANNEL,THEME_KEYS,acceptsMessage} from '../bridge/protocol.js?v=0.4.0-dev.11';
+import { appearanceIcon } from './icons.js?v=0.4.0-dev.11';
+appearanceIcon(document.querySelector('#appearance'));
 const details=document.querySelector('details');
 const resize=()=>parent.postMessage({channel:CHANNEL,type:'height',payload:document.body.scrollHeight+4},location.origin);
 window.addEventListener('message',event=>{
@@ -7,8 +9,10 @@ window.addEventListener('message',event=>{
     const {type,payload}=event.data;
     const theme=type==='plan'?payload.theme:type==='theme'?payload:null;
     if(theme)for(const key of THEME_KEYS)if(typeof theme[key]==='string'&&theme[key])document.documentElement.style.setProperty(key,theme[key]);
+    if(type==='appearance'||type==='plan'){const mode=type==='plan'?payload.appearance||'auto':payload;document.documentElement.dataset.appearance=mode;appearanceIcon(document.querySelector('#appearance'),mode);}
     if(type==='plan') {
         const record=payload.record;
+        document.querySelector('#cancel').disabled=!['waiting','preparing','streaming'].includes(record.phase);
         const labels={waiting:'等待规划开始',preparing:'正在准备资料',streaming:'正在生成',error:'生成失败',cancelled:'已停止',skipped:'本轮未生成规划'};
         document.querySelector('#phase').textContent=record.phase?`· ${labels[record.phase]||record.phase}`:'';
         document.querySelector('pre').textContent=record.phase
@@ -19,3 +23,7 @@ window.addEventListener('message',event=>{
     requestAnimationFrame(resize);
 });
 details.addEventListener('toggle',resize);new ResizeObserver(resize).observe(document.body);
+
+document.querySelector('#cancel').addEventListener('click',event=>{event.preventDefault();event.stopPropagation();parent.postMessage({channel:CHANNEL,type:'cancel'},location.origin);});
+
+document.querySelector('#appearance').addEventListener('click',event=>{event.preventDefault();event.stopPropagation();parent.postMessage({channel:CHANNEL,type:'appearance'},location.origin);});

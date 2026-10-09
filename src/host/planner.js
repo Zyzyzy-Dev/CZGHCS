@@ -1,8 +1,8 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.4.0-dev.10';
-import { createId } from '../bridge/id.js?v=0.4.0-dev.10';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.10';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.10';
+import { readPlanResponse } from './stream.js?v=0.4.0-dev.11';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.11';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.11';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.11';
 export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
@@ -130,7 +130,7 @@ c.eventSource.on(c.eventTypes.CHAT_CHANGED, () => {
 return {
  getState: () => ({...state}),
  setKey: value => { apiKey = value.trim(); },
- stop: () => { if (pending) { abortPending(); stopGeneration(); } },
+ stop: () => { abortPending(); stopGeneration(); },
  settingsChanged: () => { if (!settings().enabled && pending) { abortPending(); stopGeneration(); } },
  skip: () => { skipOnce = !skipOnce; status(skipOnce ? '下次正文请求将跳过规划。' : '已撤销跳过。'); },
 };

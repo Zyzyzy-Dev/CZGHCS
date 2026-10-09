@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { migrateSchemes, applySchemeOperation } from '../src/planning/schemes.js';
+import { migrateSchemes, applySchemeOperation, schemeSelectionState, rememberScheme } from '../src/planning/schemes.js';
 
 test('local schemes preserve external settings and reject missing overwrite targets', () => {
     const original = { apiUrl: 'https://example.com/v1', model: 'm', profileId: '', other: { value: 1 } };
@@ -24,4 +24,22 @@ test('scheme storage rejects secrets, hostile object keys and invalid kinds', ()
     }
     assert.throws(()=>applySchemeOperation(state,{kind:'constructor',operation:'create',name:'x',payload:{}}));
     assert.deepEqual(migrateSchemes(state),state);
+});
+
+
+test('preset and world selections persist independently and dirty state follows saved payload',()=>{
+    let s=migrateSchemes({});
+    assert.equal(s.schemeSelection.preset,'');
+    s=applySchemeOperation(s,{kind:'preset',operation:'create',name:'P',payload:{presetId:'P',promptOverrides:{},groupOverrides:{}}});
+    const id=s.schemes.preset[0].id;
+    s.selection.presetId='P';rememberScheme(s,'preset',id);
+    assert.equal(schemeSelectionState(s,'preset').dirty,false);
+    s.selection.promptOverrides.a=false;
+    assert.equal(schemeSelectionState(s,'preset').dirty,true);
+    assert.equal(migrateSchemes(s).schemeSelection.preset,id);
+    rememberScheme(s,'world','@current');s.selection.extraBooks.push('new');
+    assert.equal(schemeSelectionState(s,'world').dirty,true);
+    assert.equal(schemeSelectionState(s,'preset').id,id);
+    const removed=applySchemeOperation(s,{kind:'preset',operation:'delete',id});
+    assert.equal(removed.schemeSelection.preset,'');
 });
