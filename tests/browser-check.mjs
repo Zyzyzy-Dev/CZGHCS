@@ -38,7 +38,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.4$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.5$/);
  // A stuck source read must never block closing the panel.
  await page.evaluate(()=>{window.testSourceGate=new Promise(resolve=>window.releaseSource=resolve);});
  await frame.getByRole('button',{name:'刷新资料',exact:true}).click();
@@ -71,9 +71,20 @@ try{
  await frame.getByRole('button',{name:'查看 写作规则',exact:true}).click();
  await frame.locator('.entry-content').waitFor();assert.match(await frame.locator('.entry-content').textContent(),/Think/);
  await frame.getByRole('button',{name:'关闭详情',exact:true}).click();
- await frame.getByLabel('写作规则',{exact:true}).uncheck();
+ await frame.getByRole('switch',{name:'写作规则',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.promptOverrides.main===false);
+ assert.equal(await frame.locator('dialog[open]').count(),0);
+ await frame.getByRole('switch',{name:'启用 写作要求',exact:true}).click();
+ await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.promptOverrides.main===true);
+ assert.equal(await frame.locator('dialog[open]').count(),0);
+ await frame.getByRole('switch',{name:'启用 写作要求',exact:true}).click();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.selection.promptOverrides.main===false);
  await frame.getByRole('tab',{name:'世界书',exact:true}).click();
+ await frame.getByRole('switch',{name:'森林',exact:true}).click();
+ await page.waitForFunction(()=>Object.values(context.extensionSettings.czgh_external_planner.selection.entryOverrides).includes(false));
+ assert.equal(await frame.locator('dialog[open]').count(),0);
+ await frame.getByRole('switch',{name:'森林',exact:true}).click();
+ await page.waitForFunction(()=>Object.values(context.extensionSettings.czgh_external_planner.selection.entryOverrides).every(Boolean));
  await frame.getByRole('button',{name:'查看 森林',exact:true}).click();assert.equal(await frame.locator('.entry-content').textContent(),'森林里住着精灵。');
  await frame.getByRole('button',{name:'关闭详情',exact:true}).click();
  await frame.getByRole('button',{name:'新建方案',exact:true}).click();await frame.getByLabel('方案名称',{exact:true}).fill('测试方案');await frame.getByRole('button',{name:'保存',exact:true}).click();
@@ -109,7 +120,7 @@ try{
  assert.equal(await frame.getByLabel('Key',{exact:true}).inputValue(),'');
  await frame.getByRole('button',{name:'关闭',exact:true}).click();
  const generated=await page.evaluate(async()=>{
- const settings=context.extensionSettings.czgh_external_planner;settings.displayPlan=true;settings.selection.promptOverrides.main=true;
+ const settings=context.extensionSettings.czgh_external_planner;settings.displayPlan=true;settings.selection.promptOverrides.main=true;settings.selection.groupOverrides.g=true;
  context.chat=[{is_user:true,mes:'真实用户输入'}];
  for(const fn of listeners.started||[])await fn('normal');
  const data={type:'normal',messages:[{role:'system',content:'只属于正文的系统指令'},{role:'user',content:'真实用户输入'}]};

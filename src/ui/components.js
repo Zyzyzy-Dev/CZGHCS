@@ -18,6 +18,20 @@ export function check(label, checked, change, partial = false) {
     const wrap = el('label', 'check'), node = el('input'); node.type = 'checkbox'; node.checked = !!checked; node.indeterminate = !!partial; node.setAttribute('aria-label', label);
     node.addEventListener('change', () => change(node.checked)); wrap.append(node, el('span', '', label)); return wrap;
 }
+export function toggleSwitch(label, checked, change, partial = false) {
+    const node = el('button', 'toggle-switch');
+    node.type = 'button';
+    node.setAttribute('role', 'switch');
+    node.setAttribute('aria-label', label);
+    node.setAttribute('aria-checked', String(!!checked));
+    node.dataset.partial = String(partial);
+    node.title = partial ? `${label}（部分开启）` : label;
+    node.append(el('span', 'switch-track'));
+    node.addEventListener('click', event => {
+        event.preventDefault(); event.stopPropagation(); change(!checked);
+    });
+    return node;
+}
 export function section(title, content, collapsed = false) {
     const wrap = el('details', 'card'); wrap.open = !collapsed; wrap.append(el('summary', '', title), content); return wrap;
 }

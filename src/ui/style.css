@@ -36,3 +36,18 @@ header{background:transparent;padding:15px 16px 12px}
 .entry-row{background:var(--SmartThemeBlurTintColor,var(--bg));border-radius:9px}
 footer{background:transparent;border-top:0;border-radius:0 0 14px 14px}
 main>.entry-row{margin-bottom:10px}
+
+/* 条目与分组滑动开关：右侧独立触控区，条目其余区域用于打开详情。 */
+.entry-row{padding:0 4px 0 0;gap:0;min-height:44px}
+.entry-row .entry-open{flex:1;width:auto;height:auto;min-height:44px;text-align:left;padding:10px 12px;color:inherit;font-size:12px;white-space:normal;overflow-wrap:anywhere;align-self:stretch;background:transparent;border:0}
+.toggle-switch,.entry-row .toggle-switch{display:flex;align-items:center;justify-content:center;width:44px;min-width:44px;height:40px;min-height:40px;padding:0;flex:0 0 44px;border:0;background:transparent;cursor:pointer}
+.switch-track{display:block;position:relative;width:26px;height:14px;border-radius:99px;background:#858585;transition:background .15s}
+.switch-track:after{content:'';position:absolute;width:10px;height:10px;left:2px;top:2px;border-radius:50%;background:#fff;box-shadow:0 1px 2px #0002;transition:transform .15s}
+.toggle-switch[aria-checked=true] .switch-track{background:var(--accent)}
+.toggle-switch[aria-checked=true] .switch-track:after{transform:translateX(12px)}
+.toggle-switch[data-partial=true] .switch-track:after{transform:translateX(6px)}
+.switch-card>summary{padding:4px 4px 4px 12px;align-items:center;min-height:44px}
+.switch-card>summary:after{display:none}
+.group-title{flex:1;overflow-wrap:anywhere}
+.book-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:2px 4px 2px 10px;background:var(--soft);border-radius:10px;font-weight:600}
+@media(prefers-reduced-motion:reduce){.switch-track,.switch-track:after{transition:none}}
