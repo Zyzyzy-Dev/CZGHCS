@@ -77,3 +77,6 @@ button svg{display:block;margin:auto;pointer-events:none}.danger-icon{color:#b85
 @media(prefers-reduced-motion:reduce){.is-generating svg{animation:none}}
 
 .scheme-bar .icon[data-icon=edit]:not(:disabled){color:#23314c;background:#eef3fc}.scheme-bar .danger-icon:not(:disabled){color:#b44340;background:#fff0ef}.scheme-bar .icon:disabled{opacity:.55}#show-preview[aria-pressed=true]{background:var(--soft);color:var(--accent)}
+
+/* 本轮请求诊断：按真实消息顺序展开，不展示鉴权字段。 */
+.preview-tabs{display:flex;gap:8px;margin-bottom:12px}.preview-tabs button[aria-pressed=true]{color:var(--accent);background:var(--soft)}#request-view pre{padding:0 10px 10px}

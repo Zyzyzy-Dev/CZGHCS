@@ -1,14 +1,15 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.4.0-dev.12';
-import { createId } from '../bridge/id.js?v=0.4.0-dev.12';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.12';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.12';
-export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {} }) {
+import { readPlanResponse } from './stream.js?v=0.4.0-dev.13';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.13';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.13';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.13';
+export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
 const ctx = getContext;
 let apiKey = ''; // Session only; never written to extension settings or logs.
 let pending = null;
+let diagnostics = null;
 const statusNode = { set textContent(value) { state.status = value; onState({ ...state }); } };
 const previewNode = { set value(value) { state.preview = value; onState({ ...state }); } };
 
@@ -21,9 +22,16 @@ function chatIdentity() {
     const c = ctx();
     return JSON.stringify([c.chatId, c.characterId, c.groupId]);
 }
-function abortPending() { pending?.controller.abort(); }
+function abortPending() {
+    const run=pending;if(!run)return;pending=null;run.controller.abort();
+    onDiscard(run.requestId);
+    if(run.identity===chatIdentity()){
+        onProgress({...run.record,phase:'cancelled',error:'规划已停止，未注入正文。'});
+        status('规划已停止；正文请求已取消。');
+    }
+}
 
-async function requestPlan(messages, config, key, signal, progress) {
+async function requestPlan(messages, config, key, signal, progress, requestReady) {
     let body;
     if (config.request) {
         body = { ...structuredClone(config.request), messages, stream: false, max_tokens: Number(config.maxTokens) };
@@ -47,13 +55,15 @@ async function requestPlan(messages, config, key, signal, progress) {
         };
     }
     body.stream = !!config.stream;
+    signal.throwIfAborted();
+    requestReady?.(body);
     // Use ST's own backend proxy, without invoking Generate or emitting chat events.
     const response = await fetch('/api/backends/chat-completions/generate', {
         method: 'POST', headers: getRequestHeaders(), signal,
         body: JSON.stringify(body),
     });
     if (!response.ok) throw new Error(`规划 API 请求失败（HTTP ${response.status}）。`);
-    const choice = await readPlanResponse(response, text => { previewNode.value = text; progress?.(text); }, signal);
+    const choice = await readPlanResponse(response, text => { signal.throwIfAborted(); progress?.(text); }, signal);
     return extractPlan(choice.message?.content, config, choice.finish_reason);
 }
 
@@ -72,6 +82,8 @@ async function onRequest(data) {
     const run = { controller: new AbortController(), identity: chatIdentity(), requestId: createId() };
     pending = run;
     const record = { requestId: run.requestId, chatId: run.identity, expectedMessageId: data.type === 'swipe' ? (ctx().chat?.length || 1)-1 : (ctx().chat?.length || 0), text: '', phase: 'preparing', mainStream: data.stream };
+    run.record=record;
+    diagnostics=null;onDiagnostics(null);
     onProgress(record);
     const timer = setTimeout(() => run.controller.abort(), Number(config.timeoutSeconds) * 1000);
     previewNode.value = '';
@@ -90,11 +102,16 @@ async function onRequest(data) {
             config.apiUrl = config.profile.connection.custom_url;
             config.model = config.profile.model;
         }
+        run.controller.signal.throwIfAborted();
+        if(pending!==run||run.identity!==chatIdentity())throw new Error('本轮已失效。');
         Object.assign(config, resolvePlanningTags(contextMessages, config));
         validateSettings(config);
         if (unresolvedBaiBaiMacros(contextMessages)) throw new Error('发现尚未展开的柏宝书宏，请检查宏设置后重试。');
         status(`正在按 ${config.openTag}…${config.closeTag} 生成本轮规划；完成后自动继续正文…`);
-        const plan = await requestPlan(planningMessages(contextMessages, config), config, apiKey, run.controller.signal, text => { record.text = text; record.phase = 'streaming'; onProgress(record); });
+        const plan = await requestPlan(planningMessages(contextMessages, config), config, apiKey, run.controller.signal, text => { if(pending!==run||run.identity!==chatIdentity())return;previewNode.value=text;record.text = text; record.phase = 'streaming'; onProgress(record); }, body=>{
+            diagnostics={requestId:run.requestId,createdAt:new Date().toISOString(),model:body.model,stream:body.stream,maxTokens:body.max_tokens,sourceManifest:prepared?.sourceManifest||null,messages:structuredClone(body.messages)};
+            onDiagnostics(diagnostics);
+        });
         if (run.controller.signal.aborted || run.identity !== chatIdentity()) throw new Error('本轮已取消或聊天已切换。');
         // Independent mode may not rewrite any original instruction via legacy replacement rules.
         data.messages = writingMessages(original, plan, prepare ? { ...config, rules: '[]' } : config);
@@ -102,6 +119,7 @@ async function onRequest(data) {
         previewNode.value = `${config.openTag}\n${plan}\n${config.closeTag}`;
         status(`规划已注入（${plan.length} 字符），正在生成正文。正文请求流式：${data.stream === true ? '开启' : data.stream === false ? '关闭' : '未提供'}。`);
     } catch (error) {
+        if(pending!==run||run.identity!==chatIdentity())return;
         // ST's event emitter swallows thrown errors. Explicitly abort main generation.
         const wasAborted = run.controller.signal.aborted;
         onDiscard(run.requestId);
@@ -112,7 +130,7 @@ async function onRequest(data) {
             : `${error.message} 正文已停止；可重新发送或选择下次跳过。`);
     } finally {
         clearTimeout(timer);
-        if (pending === run) pending = null;
+        if (pending === run) { pending = null; onState({...state}); }
     }
 }
 
@@ -125,12 +143,15 @@ else { settings().enabled = false; status('当前酒馆缺少请求事件，插�
 c.eventSource.on(c.eventTypes.GENERATION_STOPPED, abortPending);
 c.eventSource.on(c.eventTypes.CHAT_CHANGED, () => {
  if (pending) { abortPending(); stopGeneration(); }
+ diagnostics=null;onDiagnostics(null);
  skipOnce = false; previewNode.value = ''; status('已切换聊天，规划已清空。');
 });
 return {
  getState: () => ({...state}),
+ getDiagnostics: () => diagnostics ? structuredClone(diagnostics) : null,
+ isPlanning: () => !!pending,
  setKey: value => { apiKey = value.trim(); },
- stop: () => { abortPending(); stopGeneration(); },
+ stop: () => { if(pending){abortPending();stopGeneration();} },
  settingsChanged: () => { if (!settings().enabled && pending) { abortPending(); stopGeneration(); } },
  skip: () => { skipOnce = !skipOnce; status(skipOnce ? '下次正文请求将跳过规划。' : '已撤销跳过。'); },
 };

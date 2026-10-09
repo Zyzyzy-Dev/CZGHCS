@@ -14,19 +14,20 @@ export function createMessagePlans(host) {
             for (let i = index; i >= 0; i--) if (messages[i]?.is_user) return i;
             return -1;
         };
-        if (host.display()) host.messages().forEach((message, messageId) => {
-            const swipeId = message.swipe_id ?? 0;
-            const record = message.extra?.czghCreativePlanning?.[swipeId];
-            const anchor = userBefore(messageId - 1);
-            if (record && anchor >= 0) records.set(anchor, { ...record, messageId: anchor, sourceMessageId: messageId, swipeId, stale: record.bodyFingerprint !== fingerprint(message.mes) });
-        });
+        const messages=host.messages();
+        const latestUser=userBefore(messages.length-1);
+        if(host.display())for(let messageId=messages.length-1;messageId>latestUser;messageId--){
+            const message=messages[messageId],swipeId=message.swipe_id??0;
+            const record=message.extra?.czghCreativePlanning?.[swipeId];
+            if(record&&latestUser>=0){records.set(latestUser,{...record,messageId:latestUser,sourceMessageId:messageId,swipeId,stale:record.bodyFingerprint!==fingerprint(message.mes)});break;}
+        }
         if (host.display()) for (const record of pending.values()) {
             const anchor = userBefore(Math.min(record.expectedMessageId ?? host.messages().length, host.messages().length) - 1);
-            if (record.chatId === host.chatId() && anchor >= 0) records.set(anchor, { ...record, messageId: anchor, stale: false });
+            if (record.chatId === host.chatId() && anchor >= 0 && anchor === latestUser) records.set(anchor, { ...record, messageId: anchor, stale: false });
         }
         if (host.display() && live?.chatId === host.chatId()) {
             const anchor = userBefore(Math.min(live.expectedMessageId, host.messages().length) - 1);
-            if (anchor >= 0) records.set(anchor, { ...live, messageId: anchor });
+            if (anchor >= 0 && anchor === latestUser) records.set(anchor, { ...live, messageId: anchor });
         }
         host.render([...records.values()]);
     }

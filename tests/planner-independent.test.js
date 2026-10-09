@@ -81,3 +81,46 @@ test('normal, regenerate and new swipe request fresh plans and bind independentl
         assert.equal(view[0].text,'新规划2');assert.equal(calls,3); // Browsing an existing alternative is not generation.
     } finally {globalThis.fetch=originalFetch;}
 });
+
+
+for(const action of ['stop','chat'])test(`${action}: delayed old request cannot cancel or overwrite immediate retry`,async()=>{
+    const listeners={},records=[],progress=[];let stops=0,releases=[],calls=0;
+    const context={chatId:'a',chat:[],extensionSettings:{},eventTypes:{CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(n,f)=>listeners[n]=f}};
+    const savedFetch=globalThis.fetch;let diagnostic;
+    globalThis.fetch=async()=>{calls++;return {ok:true,json:async()=>({choices:[{message:{content:'<Think>新轮规划</Think>'},finish_reason:'stop'}]})};};
+    const planner=createPlanner({getContext:()=>context,getRequestHeaders:()=>({}),stopGeneration(){stops++;listeners.stop();},prepare:async()=>{
+        await new Promise(resolve=>releases.push(resolve));return {messages:[{role:'system',content:'规划使用 <Think> 标签'}],request:{model:'m',custom_include_headers:'secret',secret_id:'secret'}};
+    },onPlanReady:r=>records.push(r),onProgress:r=>progress.push({...r}),onDiagnostics:d=>diagnostic=d});
+    context.extensionSettings.czgh_external_planner.enabled=true;
+    try{
+        const old={messages:[{role:'user',content:'旧输入'}]};const first=listeners.request(old);
+        if(action==='stop'){planner.stop();planner.stop();}else{context.chatId='b';listeners.chat();}
+        const stopCount=stops;
+        const fresh={messages:[{role:'user',content:'新输入'}]};const second=listeners.request(fresh);
+        assert.equal(releases.length,2);
+        releases[0]();await first;
+        assert.equal(stops,stopCount);assert.equal(calls,0);assert.equal(planner.isPlanning(),true);
+        releases[1]();await second;
+        assert.equal(calls,1);assert.equal(records.length,1);assert.equal(old.messages.length,1);
+        assert.match(fresh.messages.at(-1).content,/新轮规划/);assert.equal(planner.isPlanning(),false);
+        assert.ok(!JSON.stringify(diagnostic).includes('secret'));assert.equal(diagnostic.messages.at(-1).role,'system');
+        planner.stop();assert.equal(stops,stopCount); // Planning stop cannot cancel body generation after success.
+    }finally{globalThis.fetch=savedFetch;}
+});
+
+
+test('late network completion after cancellation cannot replace successful retry diagnostics or plan',async()=>{
+    const listeners={},records=[];let stops=0,release,entered;
+    const gate=new Promise(r=>entered=r),context={chatId:'a',chat:[],extensionSettings:{},eventTypes:{CHAT_COMPLETION_SETTINGS_READY:'request',GENERATION_STOPPED:'stop',CHAT_CHANGED:'chat'},eventSource:{on:(n,f)=>listeners[n]=f}};
+    const originalFetch=globalThis.fetch;let count=0;
+    globalThis.fetch=async()=>{const n=++count;if(n===1){entered();await new Promise(r=>release=r);}return {ok:true,json:async()=>({choices:[{message:{content:`<Think>规划${n}</Think>`},finish_reason:'stop'}]})};};
+    const planner=createPlanner({getContext:()=>context,getRequestHeaders:()=>({}),stopGeneration(){stops++;listeners.stop();},prepare:async()=>({messages:[{role:'system',content:'规划使用 <Think> 标签'}],request:{model:'m'}}),onPlanReady:r=>records.push(r)});
+    context.extensionSettings.czgh_external_planner.enabled=true;
+    try{
+        const old={messages:[{role:'user',content:'first'}]};const first=listeners.request(old);await gate;planner.stop();
+        await listeners.request({messages:[{role:'user',content:'second'}]});
+        const before=planner.getState(),diagnostic=planner.getDiagnostics();release();await first;
+        assert.deepEqual(planner.getState(),before);assert.deepEqual(planner.getDiagnostics(),diagnostic);
+        assert.equal(records.length,1);assert.equal(records[0].text,'规划2');assert.equal(stops,1);assert.equal(old.messages.length,1);
+    }finally{globalThis.fetch=originalFetch;release?.();}
+});

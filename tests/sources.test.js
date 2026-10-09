@@ -28,6 +28,9 @@ test('swipe excludes replaced response before history macros, regenerate uses al
     assert.equal(swipe.userInput,'本轮输入');assert.equal(swipe.macroEnvironment.lastmessage,'本轮输入');
     assert.equal(swipe.macroEnvironment.lastcharmessage,'之前回复');assert.equal(swipe.capabilities.media,false);
     assert.equal(ctx.chat.length,3);
+    ctx.chat[1].extra={files:[{name:'附件.txt'}]};
+    assert.equal((await captureSources(host,{generationType:'swipe'})).capabilities.media,true);
+    delete ctx.chat[1].extra;
     ctx.chat.pop();
     assert.deepEqual((await captureSources(host,{generationType:'regenerate'})).history,swipe.history);
     // ST already removes the replaced reply, even if the preceding message is another assistant.

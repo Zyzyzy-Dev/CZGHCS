@@ -40,7 +40,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.12$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.13$/);
  // A stuck source read must never block closing the panel.
  await page.evaluate(()=>{window.testSourceGate=new Promise(resolve=>window.releaseSource=resolve);});
  await frame.getByRole('button',{name:'关闭',exact:true}).click();
@@ -237,9 +237,9 @@ try{
  assert.equal(plannerRequest.messages.filter(m=>m.role==='user').at(-1).content,'第二轮最新输入：打开窗户');
  assert.ok(JSON.stringify(plannerRequest.messages).includes('正文'));
  assert.notEqual(second.requestId,generated.record.requestId);
- assert.equal(await page.locator('iframe[title="本楼创作规划"]').count(),2);
+ assert.equal(await page.locator('iframe[title="本楼创作规划"]').count(),1);
  await secondFloor.locator('summary').click();await secondFloor.getByText('<Think>\n本轮测试规划\n</Think>',{exact:true}).waitFor();
- assert.match(await floor.locator('pre').textContent(),/<script>/);
+ assert.equal(await page.locator('.mes[mesid="0"] iframe').count(),0);
  if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'two-turns.png')});
  streamGate=new Promise(resolve=>releaseStream=resolve);
  await page.evaluate(()=>{window.cancelGeneration=(async()=>{const data={type:'regenerate',messages:[{role:'user',content:'取消测试'}]};for(const fn of listeners.request||[])await fn(data);return data;})();});
@@ -252,6 +252,10 @@ try{
  await page.locator('#czgh-planner-menu').click();
  await frame.getByRole('button',{name:'规划预览',exact:true}).click();
  assert.match(await frame.locator('#preview').textContent(),/本轮测试规划/);
+ await frame.getByRole('button',{name:'发送上下文',exact:true}).click();
+ assert.match(await frame.locator('#request-view').textContent(),/第二轮最新输入/);
+ assert.ok(!(await frame.locator('#request-view').textContent()).includes('browser-test-key'));
+ await frame.getByRole('button',{name:'生成结果',exact:true}).click();
  if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'preview-mobile.png')});
  await frame.getByRole('button',{name:'停止本轮',exact:true}).click();
  await frame.getByRole('button',{name:'关闭',exact:true}).click();

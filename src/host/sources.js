@@ -1,5 +1,5 @@
 /* 只读来源快照：预设、角色、聊天、世界书及本轮插件注入；异步期间检查聊天身份。 */
-import { createId } from '../bridge/id.js?v=0.4.0-dev.12';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.13';
 function freeze(value) {
     if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); Object.values(value).forEach(freeze); }
     return value;
@@ -42,7 +42,7 @@ export async function captureSources(host, { signal, extraBooks = [], generation
         macroEnvironment: { user: context.name1 || '', char: context.name2 || character.name || '', description: character.description || character.data?.description || '', personality: character.personality || character.data?.personality || '', scenario: character.scenario || character.data?.scenario || '', persona: host.powerUser?.persona_description || '', original: '', lastusermessage: history.findLast(m => m.role === 'user')?.content || '', lastcharmessage: history.findLast(m => m.role === 'assistant')?.content || '', lastmessage: history.at(-1)?.content || '', lastmessageid: history.length - 1 },
         variables: { local: structuredClone(context.chatMetadata?.variables || {}), global: structuredClone(context.extensionSettings?.variables?.global || {}) },
         worldSettings: structuredClone(world.getWorldInfoSettings?.() || {}), maxContext: Number(context.chatCompletionSettings?.openai_max_context) || context.maxContext || 8192,
-        capabilities: { groupChat: !!context.groupId, media: history.some(m => m.extra?.media?.length || m.extra?.image) },
+        capabilities: { groupChat: !!context.groupId, media: history.some(m => m.extra?.media?.length || m.extra?.image || m.extra?.files?.length || m.extra?.file) },
     };
     check(); return freeze(snapshot);
 }

@@ -26,3 +26,13 @@ test('plans persist per swipe without editing body and never bind a cancelled or
     service.stage({requestId:'x',chatId:'c',text:'取消'});service.discard('x');await service.bind({requestId:'x',messageId:1,swipeId:0});assert.equal(saved,1);
     service.stage({requestId:'z',chatId:'c',text:'其他聊天'});chatId='other';await service.bind({requestId:'z',messageId:1,swipeId:0});assert.equal(saved,1);
 });
+
+
+test('only latest user floor is rendered; new input removes older floor without deleting saved chat data',()=>{
+    const messages=[{is_user:true,mes:'first'},{mes:'body',extra:{czghCreativePlanning:{0:{text:'old'}}}},{is_user:true,mes:'second'}];let view;
+    const service=createMessagePlans({chatId:()=> 'c',messages:()=>messages,display:()=>true,save:async()=>{},render:r=>view=r});
+    service.render();assert.deepEqual(view,[]);
+    service.updateLive({chatId:'c',expectedMessageId:3,phase:'streaming',text:'latest'});
+    assert.equal(view.length,1);assert.equal(view[0].messageId,2);assert.equal(view[0].text,'latest');
+    assert.equal(messages[1].extra.czghCreativePlanning[0].text,'old');
+});
