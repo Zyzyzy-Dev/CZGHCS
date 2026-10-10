@@ -101,7 +101,10 @@ test('declarative planning requirements migrate and remain binding on the writer
     assert.doesNotMatch(plan,/不输出状态栏/);
     assert.match(plan,/指导原样保留，问题另行回答/);
     assert.match(plan,/不概括、不改写、不替换为执行说明/);
-    assert.doesNotMatch(plan,/简要说明本轮如何落实/);
+    assert.match(plan,/本轮安排：/);
+    assert.match(plan,/原文与安排必须分开，安排不能替代原文/);
+    assert.match(plan,/作用对象、单位、范围、强度、条件及否定关系/);
+    assert.doesNotMatch(plan,/不自行补充实施方案/);
     assert.match(plan,/不得用情节安排替换/);
     const writer=writingMessages(source,'本轮安排',{...config,writerInstruction:'自定义正文要求'});
     assert.match(writer.at(-1).content,/规划未复述某项要求不代表该要求失效/);
