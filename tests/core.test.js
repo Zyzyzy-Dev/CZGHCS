@@ -96,7 +96,7 @@ test('preset planning contract migrates previous defaults but preserves custom i
     assert.equal(migrateSettings({plannerInstruction:'我的补充要求'}).plannerInstruction,'我的补充要求');
     const message=planningMessages([],{...config,plannerInstruction:'我的补充要求'}).at(-1).content;
     assert.match(message,/不增加预设未要求/);
-    assert.match(message,/不影响读取已有资料或完成预设要求的召回/);
+    assert.match(message,/召回、核算、例句和预写片段等明确任务仍需完成/);
     assert.doesNotMatch(message,/不输出规划区块之外的正文、顶栏、状态栏/);
     assert.match(message,/预写片段/);
     assert.match(message,/完整处理各步骤及子项/);
@@ -112,11 +112,11 @@ test('declarative planning requirements migrate and remain binding on the writer
     const plan=planningMessages(source,{...config,...migrated}).at(-1).content;
     assert.match(plan,/问题式引导逐项回答/);
     assert.match(plan,/原有标题、层级及编号/);
-    assert.match(plan,/逐字复述原文/);
-    assert.match(plan,/先逐字复述原文，再/);
+    assert.match(plan,/逐字复述指导原文/);
+    assert.match(plan,/1\. 问题式引导逐项回答；\n2\. 非问题式指导必须先一字不差的逐字复述指导原文/);
     assert.doesNotMatch(plan,/变量宏|宏占位符|是否使用宏|展开后的/);
     assert.doesNotMatch(plan,/不输出状态栏/);
-    assert.match(plan,/指导原样保留，问题另行回答/);
+    assert.match(plan,/指导必须原样一字不差的写出，问题另起一行回答/);
     assert.match(plan,/不概括、不改写、不替换为执行说明/);
     assert.match(plan,/本轮安排：/);
     assert.match(plan,/原文与安排必须分开，安排不能替代原文/);
@@ -151,4 +151,15 @@ test('extract first complete planning block and exclude all surrounding output f
     assert.doesNotMatch(injected,/前言|英文自检|output_reply|另一段/);
     assert.equal(extractPlan('前言[plan+]内容[/plan+]尾文',{...settings,openTag:'[plan+]',closeTag:'[/plan+]'},'stop'),'内容');
     assert.throws(()=>extractPlan('<Think>内容</Think>尾文',settings,'length'));
+});
+
+
+test('dev22 planning default upgrades to the approved six-part handoff',()=>{
+    const backup=JSON.parse(readFileSync(new URL('../docs/prompt-backups/0.4.0-dev.22.json',import.meta.url),'utf8'));
+    const updated=migrateSettings({plannerInstruction:backup.plannerInstruction});
+    assert.match(updated.plannerInstruction,/写作准备和创作规划/);
+    assert.equal(updated.plannerInstruction,defaults.plannerInstruction);
+    const message=planningMessages([],{...updated,openTag:'<ScenePlan>',closeTag:'</ScenePlan>'}).at(-1).content;
+    assert.match(message,/6\. 交接内容/);
+    assert.ok(message.endsWith('<ScenePlan>规划内容</ScenePlan>。'));
 });
