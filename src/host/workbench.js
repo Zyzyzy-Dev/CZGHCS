@@ -1,22 +1,23 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.4.0-dev.23';
-import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.23';
-import { captureSources } from './sources.js?v=0.4.0-dev.23';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.4.0-dev.23';
-import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.23';
-import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.23';
-import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.23';
-import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.23';
-import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.23';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.23';
-import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.23';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.23';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.4.0-dev.24';
+import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.24';
+import { captureSources } from './sources.js?v=0.4.0-dev.24';
+import { migrateSettings } from '../planning/core.js?v=0.4.0-dev.24';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.4.0-dev.24';
+import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.24';
+import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.24';
+import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.24';
+import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.24';
+import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.24';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.24';
+import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.24';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.24';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
     const vault = createCredentialStore();
     const parseYaml = text => globalThis.SillyTavern.libs?.yaml?.parse?.(text) ?? JSON.parse(text);
-    const read = () => migrateSchemes(context().extensionSettings[ID]);
+    const read = () => migrateSettings(migrateSchemes(context().extensionSettings[ID]));
     const write = async value => {
         context().extensionSettings[ID] = value;
         if (saveSettings) await saveSettings();

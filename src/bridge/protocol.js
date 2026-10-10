@@ -1,5 +1,5 @@
 /* iframe 通信协议：限定消息来源、允许的设置字段和五个主题变量。 */
-import { defaults } from '../planning/core.js?v=0.4.0-dev.23';
+import { defaults, promptDefaults } from '../planning/core.js?v=0.4.0-dev.24';
 export const CHANNEL = 'creative-planning-v1';
 export const THEME_KEYS = Object.freeze(['--SmartThemeBorderColor', '--SmartThemeBlurTintColor', '--SmartThemeBodyColor', '--mainFontFamily', '--monoFontFamily']);
 export function themeSnapshot(style) {
@@ -10,7 +10,7 @@ export function acceptsMessage(event, source, origin) {
 }
 export function cleanSettings(value) {
     if (!value || typeof value !== 'object') return {};
-    return Object.fromEntries(Object.entries(defaults).filter(([key, initial]) =>
+    return Object.fromEntries(Object.entries({...defaults,...promptDefaults}).filter(([key, initial]) =>
         typeof value[key] === typeof initial && (typeof initial !== 'number' || Number.isFinite(value[key]))
     ).map(([key]) => [key, value[key]]));
 }

@@ -79,4 +79,11 @@ button svg{display:block;margin:auto;pointer-events:none}.danger-icon{color:#b85
 .scheme-bar .icon[data-icon=edit]:not(:disabled){color:#23314c;background:#eef3fc}.scheme-bar .danger-icon:not(:disabled){color:#b44340;background:#fff0ef}.scheme-bar .icon:disabled{opacity:.55}#show-preview[aria-pressed=true]{background:var(--soft);color:var(--accent)}
 
 /* 本轮请求诊断：按真实消息顺序展开，不展示鉴权字段。 */
+.prompt-setting{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;margin:8px 0;background:var(--soft)}
+.prompt-name{flex:1;min-width:0;overflow-wrap:anywhere}.prompt-badge{font-size:10px;border-radius:12px;padding:3px 8px;background:var(--SmartThemeBlurTintColor,var(--bg));color:var(--muted);white-space:nowrap}.prompt-badge.custom{color:var(--accent)}
+.prompt-setting svg{flex-shrink:0;width:17px;height:17px;margin:0}
+.prompt-editor[open]{display:flex;flex-direction:column;gap:10px;width:calc(100% - 24px);height:calc(100dvh - 36px);max-height:calc(100dvh - 36px);padding:16px;overflow:hidden}
+.prompt-editor header{flex-shrink:0;justify-content:space-between;gap:8px}.prompt-editor h2{font-size:14px;margin:0}.prompt-editor .hint{margin:0;flex-shrink:0}
+.prompt-text{flex:1;min-height:100px;width:100%;resize:none;border:1px solid var(--SmartThemeBorderColor,var(--line));border-radius:10px;padding:12px;background:var(--SmartThemeBlurTintColor,var(--bg));color:var(--SmartThemeBodyColor,var(--text));font:12px/1.7 var(--monoFontFamily,monospace);overflow:auto}
+.prompt-actions{margin:0;flex-shrink:0;flex-wrap:wrap}.prompt-actions>button:first-child{margin-right:auto}.prompt-editor .error:empty{display:none}.prompt-editor .error{margin:0}
 .preview-tabs{display:flex;gap:8px;margin-bottom:12px}.preview-tabs button[aria-pressed=true]{color:var(--accent);background:var(--soft)}#request-view pre{padding:0 10px 10px}

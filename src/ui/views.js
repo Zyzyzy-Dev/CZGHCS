@@ -1,7 +1,9 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.23';
-import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.23';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.23';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.24';
+import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.24';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.24';
+import { promptDefaults } from '../planning/core.js?v=0.4.0-dev.24';
+import { editPrompt } from './prompt-editor.js?v=0.4.0-dev.24';
 export function renderView(root, state, ui, act) {
     const s=state.settings, selection=s.selection;
     root.replaceChildren();
@@ -44,12 +46,26 @@ export function renderView(root, state, ui, act) {
         api.append(check('流式生成规划',s.stream,v=>act('settings.update',{stream:v})));root.append(section('通用设置',api));
         const compatibility=el('div','section-body');
         for(const [category,label] of [['memory','记忆插件'],['plot','剧情规划插件']]){compatibility.append(el('h3','',label));for(const plugin of state.compatibility.filter(p=>p.category===category)){const line=el('div','plugin-row');line.append(check(plugin.name,selection.compatibilityIds.includes(plugin.id),v=>act('selection.update',{compatibilityIds:v?[...selection.compatibilityIds,plugin.id]:selection.compatibilityIds.filter(x=>x!==plugin.id)})),el('small','muted',plugin.status));compatibility.append(line);}}
-        compatibility.append(check('EJS 模板兼容（ST-Prompt-Template）',s.templateCompat,v=>act('settings.update',{templateCompat:v})),el('p','hint','按已安装模板插件执行 EJS；模板中的脚本可能修改变量。不会自动执行 MVU 生成后回写。'));
         root.append(section('插件兼容',compatibility));
+        const syntax=el('div','section-body');
+        syntax.append(check('EJS 模板兼容（ST-Prompt-Template）',s.templateCompat,v=>act('settings.update',{templateCompat:v})),el('p','hint','按已安装模板插件执行 EJS；模板中的脚本可能修改变量。不会自动执行 MVU 生成后回写。'));
+        root.append(section('提示词语法',syntax,true));
         const display=el('div','section-body');display.append(check('在用户消息下显示规划',s.displayPlan,v=>act('settings.update',{displayPlan:v})));root.append(section('显示设置',display));
         const advanced=el('div','section-body');advanced.append(select('规划标签',[{id:'auto',name:'自动跟随预设标签'},{id:'manual',name:'手动指定标签'}],s.tagMode,v=>act('settings.update',{tagMode:v})));
         if(s.tagMode==='manual')advanced.append(field('开始标签',s.openTag,v=>act('settings.update',{openTag:v})),field('结束标签',s.closeTag,v=>act('settings.update',{closeTag:v})));
-        root.append(section('高级设置',advanced,true));
+        advanced.append(el('h3','','内置提示词设置'));
+        for(const [key,title,description] of [
+            ['plannerPrompt','插件内置提示词','发送给规划 API 的完整引导。当前预设的规划标签要求由插件自动附加，无需填写宏。修改后点击完成保存；恢复默认仅替换当前草稿。'],
+            ['writerPrompt','注入正文上下文提示词','与规划一起注入正文上下文的完整引导。实际规划及首尾标签由插件自动附加，无需手动粘贴。修改后点击完成保存；恢复默认仅替换当前草稿。'],
+        ]) {
+            const value=s[key]??promptDefaults[key];
+            const row=button(`编辑${title}`,()=>editPrompt({title,value,defaultValue:promptDefaults[key],description,save:text=>act('settings.update',{[key]:text})}));
+            row.className='prompt-setting';row.replaceChildren(el('span','prompt-name',title),el('small',value===promptDefaults[key]?'prompt-badge':'prompt-badge custom',value===promptDefaults[key]?'默认':'已自定义'));
+            const icon=button('编辑',()=>{},'↥').querySelector('svg');if(icon)row.append(icon);
+            advanced.append(row);
+        }
+        const advancedCard=section('高级设置',advanced,ui.advancedCollapsed??true);
+        advancedCard.addEventListener('toggle',()=>{ui.advancedCollapsed=!advancedCard.open;});root.append(advancedCard);
     } else if(ui.page==='preset') {
         const bar=toolbar('preset');const chooser=el('div','preset-choice');chooser.append(el('span','muted','选择预设'),select('选择预设',state.presets.map(id=>({id,name:id})),selection.presetId||state.preset?.id,id=>act('selection.update',{presetId:id,promptOverrides:{},groupOverrides:{}})));bar.append(chooser);root.append(bar,saveHint('preset'));
         for(const item of state.preset?.display||[]){if(item.type==='prompt'){const entry=item.entry;root.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));continue;}const group=item.group;const content=el('div','section-body');const groupToggle=toggleSwitch('启用 '+group.name,group.enabled,value=>change('groupOverrides',group.id,value));for(const entry of group.entries)content.append(row(entry.name||entry.identifier,entry.content,entry.enabled,v=>change('promptOverrides',entry.identifier,v)));const card=section(group.name,content,ui.collapsed?.[group.id]??group.collapsed);card.classList.add('switch-card');const summary=card.querySelector('summary');summary.replaceChildren(el('span','group-title',group.name),groupToggle);card.addEventListener('toggle',()=>{(ui.collapsed??={})[group.id]=!card.open;});root.append(card);}
