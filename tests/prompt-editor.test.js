@@ -22,3 +22,13 @@ test('empty editable prompts are preserved and RPC rejects non-string prompt fie
     const state=migrateSettings({...migrateSettings({}),plannerPrompt:'',writerPrompt:''});
     assert.equal(state.plannerPrompt,'');assert.equal(state.writerPrompt,'');
 });
+
+test('previous complete default upgrades while customized prompts remain intact',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const {defaults,promptDefaults}=await import('../src/planning/core.js');
+ const backup=await readFile(new URL('../docs/prompt-backups/dev27-planner-guidance.txt',import.meta.url),'utf8');
+ const old=defaults.plannerInstruction+'\n'+backup.slice(backup.indexOf('`')+1,backup.lastIndexOf('`')).replace(/\r\n/g,'\n');
+ assert.equal(migrateSettings({plannerPrompt:old}).plannerPrompt,promptDefaults.plannerPrompt);
+ assert.equal(migrateSettings({plannerPrompt:old+' 自定义'}).plannerPrompt,old+' 自定义');
+ assert.match(promptDefaults.plannerPrompt,/不因主题相近而合并、改名或相互替代/);
+});

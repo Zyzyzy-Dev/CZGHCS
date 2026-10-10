@@ -1,5 +1,5 @@
 /* 独立方案存储：迁移旧设置、校验可持久化数据，以副本执行增删改。 */
-import { createId } from '../bridge/id.js?v=0.4.0-dev.27';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.28';
 const KINDS = ['api', 'preset', 'world'];
 export function assertSafeData(value) {
     if (!value || typeof value !== 'object') return;
