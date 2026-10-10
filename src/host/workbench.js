@@ -1,16 +1,16 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.4.0-dev.21';
-import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.21';
-import { captureSources } from './sources.js?v=0.4.0-dev.21';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.4.0-dev.21';
-import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.21';
-import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.21';
-import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.21';
-import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.21';
-import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.21';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.21';
-import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.21';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.21';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.4.0-dev.22';
+import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.22';
+import { captureSources } from './sources.js?v=0.4.0-dev.22';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.4.0-dev.22';
+import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.22';
+import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.22';
+import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.22';
+import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.22';
+import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.22';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.22';
+import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.22';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.22';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;

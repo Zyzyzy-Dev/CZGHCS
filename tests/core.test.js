@@ -113,8 +113,8 @@ test('declarative planning requirements migrate and remain binding on the writer
     assert.match(plan,/问题式引导逐项回答/);
     assert.match(plan,/原有标题、层级及编号/);
     assert.match(plan,/逐字复述原文/);
-    assert.match(plan,/直接写在预设条目中的非问题式引导照录原文/);
-    assert.match(plan,/与是否使用宏无关/);
+    assert.match(plan,/先逐字复述原文，再/);
+    assert.doesNotMatch(plan,/变量宏|宏占位符|是否使用宏|展开后的/);
     assert.doesNotMatch(plan,/不输出状态栏/);
     assert.match(plan,/指导原样保留，问题另行回答/);
     assert.match(plan,/不概括、不改写、不替换为执行说明/);
