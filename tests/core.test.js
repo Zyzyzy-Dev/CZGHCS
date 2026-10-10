@@ -85,3 +85,19 @@ test('preset planning contract migrates previous defaults but preserves custom i
     assert.match(message,/不得省略、合并/);
     assert.match(message,/<Abstract>/);
 });
+
+test('declarative planning requirements migrate and remain binding on the writer',()=>{
+    const previous='按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号与子问题，区分已发生事实与本轮拟写安排。';
+    const migrated=migrateSettings({plannerInstruction:previous});
+    assert.match(migrated.plannerInstruction,/声明式要求/);
+    const source=[{role:'system',content:'## 写作指导\n保持有限视角\n## 推进速度\n1. 缓慢推进\n2. 短段落\n3. 对话占三成\n4. 避免哪些重复？'}];
+    const original=structuredClone(source);
+    const plan=planningMessages(source,{...config,...migrated}).at(-1).content;
+    assert.match(plan,/不以是否为问句判断/);
+    assert.match(plan,/原有标题及编号/);
+    assert.match(plan,/不得用情节安排替换/);
+    const writer=writingMessages(source,'本轮安排',{...config,writerInstruction:'自定义正文要求'});
+    assert.match(writer.at(-1).content,/规划未复述某项要求不代表该要求失效/);
+    assert.match(writer.at(-1).content,/自定义正文要求/);
+    assert.deepEqual(source,original);
+});

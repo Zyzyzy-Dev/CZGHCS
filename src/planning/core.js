@@ -12,7 +12,7 @@ export const defaults = Object.freeze({
     openTag: '',
     closeTag: '',
     rules: '[]',
-    plannerInstruction: '按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号与子问题，区分已发生事实与本轮拟写安排。',
+    plannerInstruction: '按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号、子问题及声明式要求，区分已发生事实与本轮拟写安排。',
     writerInstruction: '本轮写作规划已在下方提供。将预设中要求生成、展示或再次回答规划的问题视为已经完成，不重复输出规划区块。从规划之后的实际成品开始，按规划完成本轮回复。继续遵守原预设的人设、文风、正文、顶栏、状态栏、时间戳、摘要及其他附加内容要求：原本要求生成的照常生成，原本未要求或禁止的不要新增。规划中的拟写安排不是已发生的历史事实；与用户最新输入或已知事实冲突时以原始资料为准。',
 });
 
@@ -56,6 +56,7 @@ export function resolvePlanningTags(messages, settings) {
 export function migrateSettings(saved = {}) {
     const merged = { ...defaults, ...saved };
     if (saved.plannerInstruction === '按当前预设已启用的写作准备问题逐项完成本轮公开创作规划。保留主题、编号、具体依据和创作要求；区分已发生事实与本轮拟写安排。只输出规划，不生成正文、状态栏、时间戳或其他附加成品。') merged.plannerInstruction = defaults.plannerInstruction;
+    if (saved.plannerInstruction === '按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号与子问题，区分已发生事实与本轮拟写安排。') merged.plannerInstruction = defaults.plannerInstruction;
     if (!saved.tagMode) {
         // Preserve an explicit non-default override from 0.1.0; migrate its default to auto.
         merged.tagMode = saved.openTag && saved.closeTag
@@ -93,7 +94,7 @@ export function parseRules(raw) {
 
 export function planningMessages(messages, settings) {
     return [...structuredClone(messages), { role: 'system', content:
-        `${settings.plannerInstruction}\n输出范围以预设指定的规划区块为准：逐项回答已启用步骤及子问题，不得省略、合并或用总括性结论代替后续步骤。条件不成立时只按预设要求跳过；资料缺失时说明缺失，不编造事实。包括预设要求的信息读取、召回、核算、例句、预写片段和格式确认。读取本次上下文中的已有资料，与生成新的成品分别处理；不得因本阶段仅输出规划而跳过资料读取或召回。不得新增预设未要求的自我评价、总结、检查报告或结束宣言。\n结果必须仅包含一个完整区块：${settings.openTag}规划内容${settings.closeTag}。闭合标签后立即结束。` }];
+        `${settings.plannerInstruction}\n输出范围以预设指定的规划区块为准：逐项完成已启用步骤及各子项，不以是否为问句判断是否需要输出。问句逐项回答；声明式指导、必须项、禁止项、节奏、篇幅、比例和格式约束同样属于该步骤的内容，须在原有标题及编号下保留具体要求，并简要说明本轮如何落实；预设要求原样输出的按原样保留。不得只写“已知悉”“遵守要求”或“全部通过”代替具体约束，也不得用情节安排替换该步骤原有的写作要求。不得省略、合并或用总括性结论代替后续步骤。条件不成立时只按预设要求跳过；资料缺失时说明缺失，不编造事实。包括预设要求的信息读取、召回、核算、例句、预写片段和格式确认。读取本次上下文中的已有资料，与生成新的成品分别处理；不得因本阶段仅输出规划而跳过资料读取或召回。不得新增预设未要求的自我评价、总结、检查报告或结束宣言。\n结果必须仅包含一个完整区块：${settings.openTag}规划内容${settings.closeTag}。闭合标签后立即结束。` }];
 }
 
 export function extractPlan(text, settings, finishReason) {
@@ -116,7 +117,7 @@ export function writingMessages(messages, plan, settings) {
         if (!['system', 'developer'].includes(message.role) || typeof message.content !== 'string') continue;
         for (const rule of rules) message.content = message.content.split(rule.find).join(rule.replace);
     }
-    result.push({ role: 'system', content: `${settings.writerInstruction}\n\n【本轮已完成的写作规划】\n${settings.openTag}\n${plan}\n${settings.closeTag}` });
+    result.push({ role: 'system', content: `${settings.writerInstruction}\n完成的是规划区块的生成，不是解除原预设的写作约束。继续执行原预设及本轮规划中的声明式指导、必须项、禁止项、节奏、篇幅、比例和格式要求；规划未复述某项要求不代表该要求失效。将这些要求落实到成品中，不额外输出预设未要求的执行说明或检查清单。\n\n【本轮已完成的写作规划】\n${settings.openTag}\n${plan}\n${settings.closeTag}` });
     return result;
 }
 
