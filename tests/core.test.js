@@ -95,7 +95,10 @@ test('declarative planning requirements migrate and remain binding on the writer
     const plan=planningMessages(source,{...config,...migrated}).at(-1).content;
     assert.match(plan,/不以是否为问句判断/);
     assert.match(plan,/原有标题、层级及编号/);
-    assert.match(plan,/逐字复述宏展开后的原文/);
+    assert.match(plan,/逐字复述原文/);
+    assert.match(plan,/直接写在预设条目中的非问题式引导照录原文/);
+    assert.match(plan,/与是否使用宏无关/);
+    assert.doesNotMatch(plan,/不输出状态栏/);
     assert.match(plan,/指导原样保留，问题另行回答/);
     assert.match(plan,/不概括、不改写、不替换为执行说明/);
     assert.doesNotMatch(plan,/简要说明本轮如何落实/);
