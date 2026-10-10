@@ -94,7 +94,11 @@ test('declarative planning requirements migrate and remain binding on the writer
     const original=structuredClone(source);
     const plan=planningMessages(source,{...config,...migrated}).at(-1).content;
     assert.match(plan,/不以是否为问句判断/);
-    assert.match(plan,/原有标题及编号/);
+    assert.match(plan,/原有标题、层级及编号/);
+    assert.match(plan,/逐字复述宏展开后的原文/);
+    assert.match(plan,/指导原样保留，问题另行回答/);
+    assert.match(plan,/不概括、不改写、不替换为执行说明/);
+    assert.doesNotMatch(plan,/简要说明本轮如何落实/);
     assert.match(plan,/不得用情节安排替换/);
     const writer=writingMessages(source,'本轮安排',{...config,writerInstruction:'自定义正文要求'});
     assert.match(writer.at(-1).content,/规划未复述某项要求不代表该要求失效/);
