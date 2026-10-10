@@ -40,7 +40,20 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.25$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.26$/);
+ // Resize preserves the frame and backdrop close never cancels generation.
+ const panel=page.locator('#czgh-planner-container');
+ const sizeBefore=await panel.boundingBox();
+ const grip=page.getByRole('button',{name:'调整创作规划窗口大小',exact:true});
+ await grip.waitFor({timeout:2000});
+ const corner=await grip.boundingBox();
+ await page.mouse.move(corner.x+corner.width/2,corner.y+corner.height/2);await page.mouse.down();await page.mouse.move(corner.x+corner.width/2+70,corner.y+corner.height/2-50,{steps:8});await page.mouse.up();
+ const sizeAfter=await panel.boundingBox();assert.ok(sizeAfter.width>sizeBefore.width+100);assert.ok(sizeAfter.height<sizeBefore.height-70);
+ assert.equal(await panel.evaluate(el=>el.open),true);
+ const stopsBefore=await page.evaluate(()=>window.stopCount||0);
+ await page.mouse.click(2,2);assert.equal(await panel.evaluate(el=>el.open),false);assert.equal(await page.evaluate(()=>window.stopCount||0),stopsBefore);
+ await page.locator('#czgh-planner-menu').click();assert.equal(Math.round((await panel.boundingBox()).width),Math.round(sizeAfter.width));
+ await frame.getByRole('heading',{name:'创作规划'}).click();assert.equal(await panel.evaluate(el=>el.open),true);
  // A stuck source read must never block closing the panel.
  await page.evaluate(()=>{window.testSourceGate=new Promise(resolve=>window.releaseSource=resolve);});
  await frame.getByRole('button',{name:'关闭',exact:true}).click();

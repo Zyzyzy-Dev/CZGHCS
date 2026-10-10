@@ -1,10 +1,10 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.25';
-import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.25';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.25';
-import { promptDefaults } from '../planning/core.js?v=0.4.0-dev.25';
-import { editAdditional } from './additional-editor.js?v=0.4.0-dev.25';
-import { editPrompt } from './prompt-editor.js?v=0.4.0-dev.25';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.26';
+import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.26';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.26';
+import { promptDefaults } from '../planning/core.js?v=0.4.0-dev.26';
+import { editAdditional } from './additional-editor.js?v=0.4.0-dev.26';
+import { editPrompt } from './prompt-editor.js?v=0.4.0-dev.26';
 export function renderView(root, state, ui, act) {
     const s=state.settings, selection=s.selection;
     root.replaceChildren();
