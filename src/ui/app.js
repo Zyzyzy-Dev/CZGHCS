@@ -1,9 +1,9 @@
 /* iframe 工作台：通过受限 RPC 驱动视图，独立主题与导航，不访问宿主 DOM。 */
-import { createId } from '../bridge/id.js?v=0.4.0-dev.20';
-import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js?v=0.4.0-dev.20';
-import { button, el } from './components.js?v=0.4.0-dev.20';
-import { renderView } from './views.js?v=0.4.0-dev.20';
-import { setIcon, appearanceIcon, generationIcon } from './icons.js?v=0.4.0-dev.20';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.21';
+import { CHANNEL, THEME_KEYS, acceptsMessage } from '../bridge/protocol.js?v=0.4.0-dev.21';
+import { button, el } from './components.js?v=0.4.0-dev.21';
+import { renderView } from './views.js?v=0.4.0-dev.21';
+import { setIcon, appearanceIcon, generationIcon } from './icons.js?v=0.4.0-dev.21';
 setIcon(document.querySelector('#settings'),'settings');
 setIcon(document.querySelector('#show-preview'),'preview');
 generationIcon(document.querySelector('#cancel'),false);

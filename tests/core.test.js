@@ -1,8 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { defaults, resolvePlanningTags, migrateSettings, extractPlan, planningMessages, writingMessages, eligibleRequest, unresolvedBaiBaiMacros, validateSettings } from '../src/planning/core.js';
 
 const config = { ...defaults, openTag: '<Abstract>', closeTag: '</Abstract>', apiUrl: 'https://example.org/v1', model: 'planner' };
+
+test('collaborative defaults migrate both previous instructions without overriding custom text',()=>{
+    const backup=JSON.parse(readFileSync(new URL('../docs/prompt-backups/0.4.0-dev.20.json',import.meta.url),'utf8'));
+    assert.ok(backup.planningMessage.includes(backup.plannerInstruction));
+    assert.ok(backup.writingMessage.includes(backup.writerInstruction));
+    const updated=migrateSettings({plannerInstruction:backup.plannerInstruction,writerInstruction:backup.writerInstruction});
+    assert.equal(updated.plannerInstruction,defaults.plannerInstruction);
+    assert.equal(updated.writerInstruction,defaults.writerInstruction);
+    assert.match(updated.plannerInstruction,/分阶段的协作写作/);
+    assert.match(updated.writerInstruction,/规划同事/);
+    const custom=migrateSettings({plannerInstruction:'我的规划',writerInstruction:'我的正文'});
+    assert.equal(custom.plannerInstruction,'我的规划');assert.equal(custom.writerInstruction,'我的正文');
+    const message=planningMessages([],{...config,...updated}).at(-1).content;
+    assert.doesNotMatch(message,/结果必须仅包含一个完整区块|闭合标签后立即结束/);
+    assert.match(message,/本轮安排：/);
+});
 
 test('auto tags follow each request, preserve case and ignore unrelated content/history', () => {
     for (const tag of ['Abstract', 'Think', 'think', '写作规划', 'ScenePlan']) {
@@ -35,8 +52,8 @@ test('both stages preserve expanded memory, worldbook, history and multimodal in
     assert.deepEqual(writer.slice(0, -1), snapshot);
     planner[0].content = 'changed';
     assert.deepEqual(original, snapshot);
-    assert.match(writer.at(-1).content, /状态栏/);
-    assert.match(writer.at(-1).content, /原本要求生成的照常生成/);
+    assert.match(writer.at(-1).content, /正文和预设要求的其他成品/);
+    assert.match(writer.at(-1).content, /原预设要求生成的成品照常生成/);
 });
 test('exact adapter edits instructions but never history/user input', () => {
     const messages = ['system', 'developer', 'user', 'assistant'].map(role => ({ role, content: '先输出规划；再生成状态栏' }));
@@ -78,22 +95,22 @@ test('preset planning contract migrates previous defaults but preserves custom i
     assert.notEqual(migrateSettings({plannerInstruction:old}).plannerInstruction,old);
     assert.equal(migrateSettings({plannerInstruction:'我的补充要求'}).plannerInstruction,'我的补充要求');
     const message=planningMessages([],{...config,plannerInstruction:'我的补充要求'}).at(-1).content;
-    assert.match(message,/不得新增预设未要求/);
-    assert.match(message,/不得因本阶段仅输出规划而跳过资料读取或召回/);
+    assert.match(message,/不增加预设未要求/);
+    assert.match(message,/不影响读取已有资料或完成预设要求的召回/);
     assert.doesNotMatch(message,/不输出规划区块之外的正文、顶栏、状态栏/);
     assert.match(message,/预写片段/);
-    assert.match(message,/不得省略、合并/);
+    assert.match(message,/完整处理各步骤及子项/);
     assert.match(message,/<Abstract>/);
 });
 
 test('declarative planning requirements migrate and remain binding on the writer',()=>{
     const previous='按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号与子问题，区分已发生事实与本轮拟写安排。';
     const migrated=migrateSettings({plannerInstruction:previous});
-    assert.match(migrated.plannerInstruction,/声明式要求/);
+    assert.match(migrated.plannerInstruction,/分阶段的协作写作/);
     const source=[{role:'system',content:'## 写作指导\n保持有限视角\n## 推进速度\n1. 缓慢推进\n2. 短段落\n3. 对话占三成\n4. 避免哪些重复？'}];
     const original=structuredClone(source);
     const plan=planningMessages(source,{...config,...migrated}).at(-1).content;
-    assert.match(plan,/不以是否为问句判断/);
+    assert.match(plan,/问题式引导逐项回答/);
     assert.match(plan,/原有标题、层级及编号/);
     assert.match(plan,/逐字复述原文/);
     assert.match(plan,/直接写在预设条目中的非问题式引导照录原文/);
@@ -105,7 +122,7 @@ test('declarative planning requirements migrate and remain binding on the writer
     assert.match(plan,/原文与安排必须分开，安排不能替代原文/);
     assert.match(plan,/作用对象、单位、范围、强度、条件及否定关系/);
     assert.doesNotMatch(plan,/不自行补充实施方案/);
-    assert.match(plan,/不得用情节安排替换/);
+    assert.match(plan,/安排不能替代原文/);
     const writer=writingMessages(source,'本轮安排',{...config,writerInstruction:'自定义正文要求'});
     assert.match(writer.at(-1).content,/规划未复述某项要求不代表该要求失效/);
     assert.match(writer.at(-1).content,/自定义正文要求/);
@@ -120,7 +137,7 @@ test('quoted delimiter references inside a plan do not close its outer block',()
     for(const text of ['`<Think>`x`</Think>`','<Think>x<Think>y</Think>'])assert.throws(()=>extractPlan(text,settings,'stop'));
     const custom={...config,openTag:'[plan+]',closeTag:'[/plan+]'};
     assert.equal(extractPlan('[plan+]引用 `[/plan+]`[/plan+]',custom,'stop'),'引用 `[/plan+]`');
-    assert.match(planningMessages([],settings).at(-1).content,/不得用本插件要求的规划外层标签/);
+    assert.match(planningMessages([],settings).at(-1).content,/不用本插件的规划外层标签/);
 });
 
 

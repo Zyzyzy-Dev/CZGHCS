@@ -1,6 +1,6 @@
 /* 楼内规划视图：安全文本渲染、五项主题接收以及高度上报。 */
-import {CHANNEL,THEME_KEYS,acceptsMessage} from '../bridge/protocol.js?v=0.4.0-dev.20';
-import { appearanceIcon, generationIcon } from './icons.js?v=0.4.0-dev.20';
+import {CHANNEL,THEME_KEYS,acceptsMessage} from '../bridge/protocol.js?v=0.4.0-dev.21';
+import { appearanceIcon, generationIcon } from './icons.js?v=0.4.0-dev.21';
 appearanceIcon(document.querySelector('#appearance'));
 const details=document.querySelector('details');
 const resize=()=>parent.postMessage({channel:CHANNEL,type:'height',payload:document.body.scrollHeight+4},location.origin);

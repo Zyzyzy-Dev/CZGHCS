@@ -12,8 +12,8 @@ export const defaults = Object.freeze({
     openTag: '',
     closeTag: '',
     rules: '[]',
-    plannerInstruction: '按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号、子问题及声明式要求，区分已发生事实与本轮拟写安排。',
-    writerInstruction: '本轮写作规划已在下方提供。将预设中要求生成、展示或再次回答规划的问题视为已经完成，不重复输出规划区块。从规划之后的实际成品开始，按规划完成本轮回复。继续遵守原预设的人设、文风、正文、顶栏、状态栏、时间戳、摘要及其他附加内容要求：原本要求生成的照常生成，原本未要求或禁止的不要新增。规划中的拟写安排不是已发生的历史事实；与用户最新输入或已知事实冲突时以原始资料为准。',
+    plannerInstruction: '你正在参与一次分阶段的协作写作。本轮由你完成当前预设要求的写作准备，随后由写作同事结合原始资料与你的规划完成正文及其他要求的成品。请沿用预设指定的身份、语言和创作方式。',
+    writerInstruction: '你的规划同事已经完成了本轮写作准备，以下是供你接续使用的创作规划。请结合原始上下文、用户最新输入及当前预设，继续完成正文和预设要求的其他成品，无需重新输出规划区块。',
 });
 
 // Conservative recognition of explicit format instructions, not past assistant output.
@@ -57,6 +57,8 @@ export function migrateSettings(saved = {}) {
     const merged = { ...defaults, ...saved };
     if (saved.plannerInstruction === '按当前预设已启用的写作准备问题逐项完成本轮公开创作规划。保留主题、编号、具体依据和创作要求；区分已发生事实与本轮拟写安排。只输出规划，不生成正文、状态栏、时间戳或其他附加成品。') merged.plannerInstruction = defaults.plannerInstruction;
     if (saved.plannerInstruction === '按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号与子问题，区分已发生事实与本轮拟写安排。') merged.plannerInstruction = defaults.plannerInstruction;
+    if (saved.plannerInstruction === "按当前预设已启用条目完成其指定规划标签内的全部写作准备内容，保留原有顺序、标题、编号、子问题及声明式要求，区分已发生事实与本轮拟写安排。") merged.plannerInstruction = defaults.plannerInstruction;
+    if (saved.writerInstruction === "本轮写作规划已在下方提供。将预设中要求生成、展示或再次回答规划的问题视为已经完成，不重复输出规划区块。从规划之后的实际成品开始，按规划完成本轮回复。继续遵守原预设的人设、文风、正文、顶栏、状态栏、时间戳、摘要及其他附加内容要求：原本要求生成的照常生成，原本未要求或禁止的不要新增。规划中的拟写安排不是已发生的历史事实；与用户最新输入或已知事实冲突时以原始资料为准。") merged.writerInstruction = defaults.writerInstruction;
     if (!saved.tagMode) {
         // Preserve an explicit non-default override from 0.1.0; migrate its default to auto.
         merged.tagMode = saved.openTag && saved.closeTag
@@ -94,7 +96,13 @@ export function parseRules(raw) {
 
 export function planningMessages(messages, settings) {
     return [...structuredClone(messages), { role: 'system', content:
-        `${settings.plannerInstruction}\n输出范围以预设指定的规划区块为准：逐项完成已启用步骤及各子项，不以是否为问句判断是否需要输出。问题式引导逐项回答；非问题式的指导、声明、必须项、禁止项、节奏、篇幅、比例和格式约束，须在原有标题、层级及编号下逐字复述原文，无论该内容是直接写在预设条目中的文本，还是由变量宏提供的文本，保留原有措辞、否定词、数值和标签，不概括、不改写、不替换为执行说明。随后在同一子项内另起一行，以“本轮安排：”说明如何落实该项要求；原文与安排必须分开，安排不能替代原文。安排须遵守原文的作用对象、单位、范围、强度、条件及否定关系，不得把一种约束转换成另一种约束，也不得自行增加原文未规定的硬性数值或规则。预设其他已启用条目对该要求有具体定义时，安排须遵循其定义；没有定义时不得声称某个数值来自预设。直接写在预设条目中的非问题式引导照录原文；只有涉及变量宏时，才使用展开后的实际文本代替宏占位符。是否复述取决于它是否为非问题式引导，与是否使用宏无关。一个子项同时含有指导和问题时，指导原样保留，问题另行回答；预设明确要求列举、计算、召回或预写的任务仍须完成，不仅复制任务指令。复述范围仅限预设指定规划区块内的已启用内容，不把整个预设或规划区块外的成品模板复制进来。不得只写“已知悉”“遵守要求”或“全部通过”代替具体约束，也不得用情节安排替换该步骤原有的写作要求。不得省略、合并或用总括性结论代替后续步骤。条件不成立时只按预设要求跳过；资料缺失时说明缺失，不编造事实。包括预设要求的信息读取、召回、核算、例句、预写片段和格式确认。预设中的格式确认须按该步骤原文指定的对象作答，不得用本插件要求的规划外层标签或仅输出规划的限制替换原预设对正文及附加成品的格式要求；本阶段不生成成品，并不妨碍复述其格式要求。读取本次上下文中的已有资料，与生成新的成品分别处理；不得因本阶段仅输出规划而跳过资料读取或召回。不得新增预设未要求的自我评价、总结、检查报告或结束宣言。\n结果必须仅包含一个完整区块：${settings.openTag}规划内容${settings.closeTag}。闭合标签后立即结束。` }];
+        `${settings.plannerInstruction}\n请按当前预设已启用的规划步骤及顺序完成交接，保留原有标题、层级及编号：
+1. 问题式引导逐项回答；非问题式引导逐字复述原文，再在同一子项下另起“本轮安排：”说明执行方式。直接写在预设条目中的非问题式引导照录原文；涉及变量宏时使用展开后的实际文本，与是否使用宏无关。原文与安排必须分开，安排不能替代原文。一个子项同时包含指导与问题时，指导原样保留，问题另行回答。
+2. 原文保留措辞、否定词、数值及标签，不概括、不改写、不替换为执行说明。安排遵循原要求的作用对象、单位、范围、强度、条件及否定关系，并参考预设已启用条目的具体定义；不自行增加硬性数值或规则。
+3. 完整处理各步骤及子项，不用笼统总结替代后续步骤。条件步骤按预设条件处理；资料缺失时说明缺失，区分已发生事实与本轮拟写安排。列举、信息读取、召回、核算、例句和预写片段等明确任务仍需完成，不仅复制任务指令。
+4. 预设中涉及正文与附加成品的要求，是后续写作同事需要执行的交付要求，请在相关规划步骤中准确保留。格式确认按该步骤原文指定的对象作答，不用本插件的规划外层标签替代正文成品格式。本轮交付规划，正文及其他成品由下一阶段完成；这不影响读取已有资料或完成预设要求的召回，也不影响规划内的例句、预写片段和核算。
+5. 交接内容以预设指定的规划区块为范围，不复制整个预设或区块外的成品模板，不增加预设未要求的自我评价、总结、检查报告或结束宣言。
+请将完整规划放入当前预设指定的标签中：${settings.openTag}规划内容${settings.closeTag}。` }];
 }
 
 export function extractPlan(text, settings, finishReason) {
@@ -125,7 +133,7 @@ export function writingMessages(messages, plan, settings) {
         if (!['system', 'developer'].includes(message.role) || typeof message.content !== 'string') continue;
         for (const rule of rules) message.content = message.content.split(rule.find).join(rule.replace);
     }
-    result.push({ role: 'system', content: `${settings.writerInstruction}\n完成的是规划区块的生成，不是解除原预设的写作约束。继续执行原预设及本轮规划中的声明式指导、必须项、禁止项、节奏、篇幅、比例和格式要求；规划未复述某项要求不代表该要求失效。将这些要求落实到成品中，不额外输出预设未要求的执行说明或检查清单。\n\n【本轮已完成的写作规划】\n${settings.openTag}\n${plan}\n${settings.closeTag}` });
+    result.push({ role: 'system', content: `${settings.writerInstruction}\n将规划中的安排落实到创作中，同时继续遵守原预设的具体要求，包括声明式指导、必须项、禁止项、节奏、篇幅、比例和格式。规划属于辅助材料，不替代原始资料；规划未复述某项要求不代表该要求失效，原预设要求生成的成品照常生成，未要求或禁止的不要新增。拟写安排不应当作已经发生的事实；与用户最新输入或已知事实冲突时以原始资料为准。无需额外展示预设未要求的执行说明或检查清单。\n\n【本轮创作规划】\n${settings.openTag}\n${plan}\n${settings.closeTag}` });
     return result;
 }
 
