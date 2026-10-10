@@ -1,5 +1,6 @@
 /* 共享线条图标：工作台和楼内 iframe 使用相同 SVG 与外观状态标识。 */
 const shapes = {
+    reply: '<path d="M3 4h18v14H7l-4 3z"/>',
     edit: '<path d="M13 3H5v18h14v-7M13 3v6h6M13 3l6 6M10 16l7-7 3 3-7 7-4 1z"/>',
     trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
     settings: '<path d="M9.5 3h5l.6 2.4 2.1 1.2 2.4-.7 2.5 4.2-1.8 1.8v2.4l1.8 1.8-2.5 4.2-2.4-.7-2.1 1.2-.6 2.4h-5l-.6-2.4-2.1-1.2-2.4.7L1.9 16l1.8-1.8v-2.4l-1.8-1.8 2.5-4.2 2.4.7 2.1-1.2z" transform="translate(1 0) scale(.92)"/><circle cx="12" cy="12" r="3.2"/>',

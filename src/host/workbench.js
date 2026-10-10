@@ -1,17 +1,17 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.4.0-dev.24';
-import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.24';
-import { captureSources } from './sources.js?v=0.4.0-dev.24';
-import { migrateSettings } from '../planning/core.js?v=0.4.0-dev.24';
-import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.4.0-dev.24';
-import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.24';
-import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.24';
-import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.24';
-import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.24';
-import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.24';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.24';
-import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.24';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.24';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.4.0-dev.25';
+import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.25';
+import { captureSources } from './sources.js?v=0.4.0-dev.25';
+import { migrateSettings } from '../planning/core.js?v=0.4.0-dev.25';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.4.0-dev.25';
+import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.25';
+import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.25';
+import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.25';
+import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.25';
+import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.25';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.25';
+import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.25';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.25';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -34,9 +34,9 @@ export function createWorkbench({ context, headers, saveSettings }) {
         const response = await fetch('/api/secrets/read', { method: 'POST', headers: headers(), body: '{}' });
         if (!response.ok) throw new Error('无法读取密钥引用。');
         const secretId = (await response.json()).api_key_custom?.find(x => x.active)?.id;
-        return { source: 'custom', model: c.custom_model, connection: { custom_url: c.custom_url }, secretId };
+        return { source: 'custom', model: c.custom_model, connection: { custom_url: c.custom_url }, additional:Object.fromEntries(['custom_include_body','custom_exclude_body','custom_include_headers'].map(k=>[k,c[k]||''])), secretId };
     }
-    const api = createApiSchemes({ read, write, external, current, vault, models: async config => {
+    const api = createApiSchemes({ read, write, external, current, currentAdditional:()=>Object.fromEntries(['custom_include_body','custom_exclude_body','custom_include_headers'].map(k=>[k,context().chatCompletionSettings?.[k]||''])), vault, models: async config => {
         let request = profileRequest({ ...config, model: config.model || 'models' }, [], 1, parseYaml);
         if (config.keyRef) request = authorizeLocalRequest(request, await vault.get(config.keyRef), parseYaml);
         const response = await fetch('/api/backends/chat-completions/status', { method: 'POST', headers: headers(), body: JSON.stringify(request) });
@@ -83,6 +83,8 @@ export function createWorkbench({ context, headers, saveSettings }) {
                 let base = {};
                 if (payload.sourceId && !(payload.key && payload.apiUrl && payload.sourceId === 'current')) base = await api.resolve(payload.sourceId);
                 const config = { ...base, source: 'custom', model: payload.model || base.model || '', connection: { custom_url: payload.apiUrl || base.connection?.custom_url || '' } };
+                if(payload.additional!==undefined)config.additional=payload.additional;
+                profileRequest({...config,keyRef:config.keyRef||'validate'},[],state.maxTokens,parseYaml);
                 const url = new URL(config.connection.custom_url);
                 if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('请填写有效的 HTTP(S) 基础地址。');
                 await api.save({ id: payload.id, name: payload.name, config, key: payload.key });

@@ -1,5 +1,5 @@
 /* API 方案宿主服务：外部只读、自有方案副本持久化、禁止改变活动密钥。 */
-import { applySchemeOperation, migrateSchemes } from '../planning/schemes.js?v=0.4.0-dev.24';
+import { applySchemeOperation, migrateSchemes } from '../planning/schemes.js?v=0.4.0-dev.25';
 
 export function createApiSchemes(host) {
     let queue = Promise.resolve();
@@ -14,7 +14,7 @@ export function createApiSchemes(host) {
     };
     return {
         async list() {
-            return [{ id: 'current', name: '酒馆当前连接', origin: 'current' }, ...host.external().map(p => ({ id: `external:${p.id}`, name: p.name, origin: 'external', model: p.model, apiUrl: p.connection?.custom_url || '' })), ...read().schemes.api.map(p => ({ id: `local:${p.id}`, name: p.name, origin: 'local', model: p.payload.model, apiUrl: p.payload.connection?.custom_url || p.payload.apiUrl || '', hasKey: !!(p.payload.secretId || p.payload.keyRef) }))];
+            return [{ id: 'current', name: '酒馆当前连接', origin: 'current', additional:structuredClone(host.currentAdditional?.()||{}) }, ...host.external().map(p => ({ id: `external:${p.id}`, name: p.name, origin: 'external', additional:structuredClone(p.additional||{}), model: p.model, apiUrl: p.connection?.custom_url || '' })), ...read().schemes.api.map(p => ({ id: `local:${p.id}`, name: p.name, origin: 'local', additional:structuredClone(p.payload.additional||{}), model: p.payload.model, apiUrl: p.payload.connection?.custom_url || p.payload.apiUrl || '', hasKey: !!(p.payload.secretId || p.payload.keyRef) }))];
         },
         async resolve(selection) {
             let config;

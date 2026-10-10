@@ -87,3 +87,8 @@ button svg{display:block;margin:auto;pointer-events:none}.danger-icon{color:#b85
 .prompt-text{flex:1;min-height:100px;width:100%;resize:none;border:1px solid var(--SmartThemeBorderColor,var(--line));border-radius:10px;padding:12px;background:var(--SmartThemeBlurTintColor,var(--bg));color:var(--SmartThemeBodyColor,var(--text));font:12px/1.7 var(--monoFontFamily,monospace);overflow:auto}
 .prompt-actions{margin:0;flex-shrink:0;flex-wrap:wrap}.prompt-actions>button:first-child{margin-right:auto}.prompt-editor .error:empty{display:none}.prompt-editor .error{margin:0}
 .preview-tabs{display:flex;gap:8px;margin-bottom:12px}.preview-tabs button[aria-pressed=true]{color:var(--accent);background:var(--soft)}#request-view pre{padding:0 10px 10px}
+
+/* 紧凑 API 设置和上下文预览。 */
+.api-limits{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:6px}.api-limits .field{min-width:0}.api-limits input{min-width:0;width:100%}.api-limits button{padding:6px}.additional-field{display:flex;flex-direction:column;gap:5px;min-height:0;flex:1}.additional-field textarea{width:100%;min-height:60px;flex:1;resize:vertical}.preview-heading{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}.preview-heading h2{margin:0;font-size:13px}.preview-tabs{margin:0;display:flex}.preview-tabs button{padding:6px;font-size:12px}.preview-compress{display:flex;justify-content:flex-end;gap:5px;font-size:12px;margin:8px 0}.preview-compress[hidden]{display:none}
+
+.api-limits{align-items:center}.api-limits button{height:36px}.api-limits .field{margin:0}

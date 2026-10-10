@@ -40,7 +40,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.24$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.25$/);
  // A stuck source read must never block closing the panel.
  await page.evaluate(()=>{window.testSourceGate=new Promise(resolve=>window.releaseSource=resolve);});
  await frame.getByRole('button',{name:'关闭',exact:true}).click();
@@ -96,7 +96,7 @@ try{
  await writerEditor.getByRole('button',{name:'完成',exact:true}).click();
  await page.waitForFunction(value=>context.extensionSettings.czgh_external_planner.writerPrompt===value,originalWriter);
  await frame.getByLabel('启用创作规划',{exact:true}).check();
- await frame.getByLabel('流式生成规划',{exact:true}).check();
+ await frame.getByLabel('流式输出规划',{exact:true}).check();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.stream===true);
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.enabled===true);
  const inner=await frame.locator('input[type=text]').first().evaluate(el=>({color:getComputedStyle(el).color,size:getComputedStyle(el).fontSize,background:getComputedStyle(el).backgroundColor}));
@@ -107,8 +107,12 @@ try{
  assert.equal(await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).isDisabled(),true);
  assert.equal(await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).getAttribute('data-icon'),'edit');
  assert.equal(await frame.getByRole('button',{name:'删除 API 方案',exact:true}).getAttribute('data-icon'),'trash');
+ await frame.getByRole('button',{name:'附加参数',exact:true}).click();
+ await frame.getByLabel('包括主体参数',{exact:true}).fill('{"top_k":20}');
+ await frame.getByRole('dialog',{name:'附加参数',exact:true}).getByRole('button',{name:'完成',exact:true}).click();
  await frame.getByRole('button',{name:'新建 API 方案',exact:true}).click();await frame.getByLabel('方案名称',{exact:true}).fill('独立 API');await frame.getByRole('button',{name:'保存',exact:true}).click();
  await page.waitForFunction(()=>context.extensionSettings.czgh_external_planner.schemes.api.length===1);
+ assert.equal(await page.evaluate(()=>context.extensionSettings.czgh_external_planner.schemes.api[0].payload.additional.custom_include_body),'{"top_k":20}');
  assert.equal(await frame.getByRole('button',{name:'覆盖 API 方案',exact:true}).isDisabled(),false);
  assert.equal(await page.evaluate(()=>context.extensionSettings.preset_compare_api_manager.profiles[0].name),'测试方案');
  await frame.getByRole('button',{name:'删除 API 方案',exact:true}).click();await frame.getByRole('button',{name:'删除',exact:true}).click();
@@ -199,7 +203,7 @@ try{
  assert.equal(await frame.getByLabel('Key',{exact:true}).inputValue(),'');
  await frame.getByRole('button',{name:'关闭',exact:true}).click();
  await page.evaluate(async()=>{
- const settings=context.extensionSettings.czgh_external_planner;settings.displayPlan=true;settings.selection.promptOverrides.main=true;settings.selection.groupOverrides.g=true;
+ const settings=context.extensionSettings.czgh_external_planner;settings.autoReply=false;settings.displayPlan=true;settings.selection.promptOverrides.main=true;settings.selection.groupOverrides.g=true;
  context.chat=[{is_user:true,mes:'真实用户输入'}];const user=document.createElement('div');user.className='mes';user.setAttribute('mesid','0');user.innerHTML='<div class="mes_block"></div>';document.body.append(user);
  for(const fn of listeners['user-render']||[])await fn(0);
  });
@@ -234,7 +238,12 @@ try{
  assert.equal(await floor.locator('details').evaluate(el=>el.open),true);
  assert.equal(await page.evaluate(()=>context.chat.length),1);
  releaseStream();streamGate=null;
+ await floor.getByText('· 等待生成正文',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>context.chat.length),1);
+ assert.equal(await frame.locator('#resume').isEnabled(),true);
+ await floor.getByRole('button',{name:'生成正文回复',exact:true}).click();
  const generated=await page.evaluate(()=>window.testGeneration);
+ await page.evaluate(()=>context.extensionSettings.czgh_external_planner.autoReply=true);
  assert.equal(generated.data.stream,true);
  assert.equal(JSON.parse(plannerRequest.custom_include_headers).Authorization,'Bearer browser-test-key');
  assert.equal(plannerRequest.stream,true);assert.equal(plannerRequest.model,'local-model');assert.ok(plannerRequest.secret_id.startsWith('czgh-local:'));
@@ -291,6 +300,11 @@ try{
  assert.match(await frame.locator('#preview').textContent(),/本轮测试规划/);
  await frame.getByRole('button',{name:'发送上下文',exact:true}).click();
  assert.match(await frame.locator('#request-view').textContent(),/第二轮最新输入/);
+ assert.match(await frame.locator('#request-view').textContent(),/预计输入：约/);
+ const sentBefore=JSON.stringify(plannerRequest.messages);
+ await frame.getByLabel('压缩同类消息',{exact:true}).check();
+ assert.equal(JSON.stringify(plannerRequest.messages),sentBefore);
+ if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'request-mobile.png')});
  assert.ok(!(await frame.locator('#request-view').textContent()).includes('browser-test-key'));
  await frame.getByRole('button',{name:'生成结果',exact:true}).click();
  if(process.env.SCREENSHOT_DIR)await page.screenshot({path:path.join(process.env.SCREENSHOT_DIR,'preview-mobile.png')});

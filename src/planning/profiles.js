@@ -18,14 +18,16 @@ export function resolveProfile(settings, id) {
 }
 export function profileRequest(profile, messages, maxTokens, parseYaml) {
     if (profile.source !== 'custom' || !(profile.secretId || profile.keyRef) || !profile.model) throw new Error('API 方案缺少模型或密钥引用。');
+    if(profile.additional!=null&&(typeof profile.additional!=='object'||Array.isArray(profile.additional)))throw new Error('附加参数结构无效。');
     const body = { chat_completion_source: 'custom', custom_url: profile.connection.custom_url,
         secret_id: profile.keyRef ? `czgh-local:${profile.keyRef}` : profile.secretId, model: profile.model, messages: structuredClone(messages), stream: false, max_tokens: Number(maxTokens) };
     const protectedFields = new Set(['messages', 'model', 'stream', 'max_tokens', 'max_completion_tokens', 'prompt', 'tools', 'tool_choice', 'functions', 'function_call', 'n', 'secret_id', 'chat_completion_source', 'custom_url', 'reverse_proxy', 'proxy_password', '__proto__', 'constructor', 'prototype']);
     for (const field of ['custom_include_body', 'custom_exclude_body', 'custom_include_headers']) {
         const raw = profile.additional?.[field];
+        if(raw!==undefined&&typeof raw!=='string')throw new Error('附加参数必须为 YAML 文本。');
         if (!raw?.trim()) continue;
         let parsed;
-        try { parsed = parseYaml(raw); } catch { throw new Error('API 方案附加参数无法解析，请在预设更新编辑器中检查。'); }
+        try { parsed = parseYaml(raw); } catch { throw new Error('API 方案附加参数无法解析，请在附加参数中检查。'); }
         const excluded = field === 'custom_exclude_body';
         if (!parsed || typeof parsed !== 'object' || (excluded ? !Array.isArray(parsed) : Array.isArray(parsed))) throw new Error('API 方案附加参数结构无效。');
         const keys = excluded ? parsed : Object.keys(parsed);

@@ -1,8 +1,8 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.4.0-dev.24';
-import { createId } from '../bridge/id.js?v=0.4.0-dev.24';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.24';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.24';
+import { readPlanResponse } from './stream.js?v=0.4.0-dev.25';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.25';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.25';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.25';
 export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
@@ -113,6 +113,20 @@ async function onRequest(data) {
             onDiagnostics(diagnostics);
         });
         if (run.controller.signal.aborted || run.identity !== chatIdentity()) throw new Error('本轮已取消或聊天已切换。');
+        clearTimeout(timer);
+        if(config.autoReply===false){
+            previewNode.value=`${config.openTag}\n${plan}\n${config.closeTag}`;
+            record.text=plan;record.phase='awaiting';
+            const chatSnapshot=JSON.stringify(ctx().chat);
+            await new Promise((resolve,reject)=>{
+                const abort=()=>reject(new Error('本轮已取消。'));
+                run.resume=()=>{run.controller.signal.removeEventListener('abort',abort);resolve();};
+                run.controller.signal.addEventListener('abort',abort,{once:true});
+                status('规划已完成，等待点击“生成正文回复”。');onProgress(record);
+            });
+            run.controller.signal.throwIfAborted();
+            if(pending!==run||run.identity!==chatIdentity()||JSON.stringify(ctx().chat)!==chatSnapshot)throw Error('聊天内容已变化，请重新生成规划。');
+        }
         // Independent mode may not rewrite any original instruction via legacy replacement rules.
         data.messages = writingMessages(original, plan, prepare ? { ...config, rules: '[]' } : config);
         onPlanReady({ version: 1, requestId: run.requestId, chatId: run.identity, text: plan, openTag: config.openTag, closeTag: config.closeTag, createdAt: Date.now(), generationType: data.type || 'normal', expectedMessageId: data.type === 'swipe' ? (ctx().chat?.length || 1) - 1 : (ctx().chat?.length || 0), nextWorldState: prepared?.nextWorldState });
@@ -147,9 +161,10 @@ c.eventSource.on(c.eventTypes.CHAT_CHANGED, () => {
  skipOnce = false; previewNode.value = ''; status('已切换聊天，规划已清空。');
 });
 return {
- getState: () => ({...state}),
+ getState: () => ({...state,awaitingReply:!!pending?.resume}),
+ resume: () => {const run=pending;if(!run?.resume||run.identity!==chatIdentity())return false;const resume=run.resume;run.resume=null;resume();onState({...state,awaitingReply:false});return true;},
  getDiagnostics: () => diagnostics ? structuredClone(diagnostics) : null,
- isPlanning: () => !!pending,
+ isPlanning: () => !!pending && !pending.resume,
  setKey: value => { apiKey = value.trim(); },
  stop: () => { if(pending){abortPending();stopGeneration();} },
  settingsChanged: () => { if (!settings().enabled && pending) { abortPending(); stopGeneration(); } },
