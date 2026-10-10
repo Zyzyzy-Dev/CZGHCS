@@ -1,10 +1,10 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.26';
-import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.26';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.26';
-import { promptDefaults } from '../planning/core.js?v=0.4.0-dev.26';
-import { editAdditional } from './additional-editor.js?v=0.4.0-dev.26';
-import { editPrompt } from './prompt-editor.js?v=0.4.0-dev.26';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.27';
+import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.27';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.27';
+import { promptDefaults } from '../planning/core.js?v=0.4.0-dev.27';
+import { editAdditional } from './additional-editor.js?v=0.4.0-dev.27';
+import { editPrompt } from './prompt-editor.js?v=0.4.0-dev.27';
 export function renderView(root, state, ui, act) {
     const s=state.settings, selection=s.selection;
     root.replaceChildren();
@@ -33,7 +33,7 @@ export function renderView(root, state, ui, act) {
         const profile=state.profiles.find(p=>p.id===s.apiSelection);
         const apiOptions=profile?state.profiles:[{id:s.apiSelection||'',name:'原方案不可用，请重新选择',origin:'missing'},...state.profiles];
         const draft=ui.apiDraft;
-        const bar=el('div','scheme-bar');bar.append(el('span','muted','方案'),select('API 方案',apiOptions.map(p=>({...p,name:`${p.origin==='external'?'编辑器 · ':p.origin==='local'?'本地 · ':''}${p.name}`})),s.apiSelection,async value=>{ui.apiDraft={};await act('settings.update',{apiSelection:value});}));
+        const bar=el('div','scheme-bar');bar.append(el('span','muted','方案'),select('API 方案',apiOptions.map(p=>({...p,name:`${p.origin==='local'?'本地 · ':''}${p.name}`})),s.apiSelection,async value=>{ui.apiDraft={};await act('settings.update',{apiSelection:value});}));
         const save=async overwrite=>{const name=await ask(overwrite?'覆盖 API 方案':'新建 API 方案',overwrite?profile?.name:'');if(name)await act('api.save',{id:overwrite?s.apiSelection:undefined,sourceId:s.apiSelection,name,apiUrl:draft.apiUrl,model:draft.model,key:draft.key,additional:draft.additional});};
         bar.append(button('新建 API 方案',()=>save(false),'+'));
         const over=button('覆盖 API 方案',()=>save(true),'↥');over.disabled=profile?.origin!=='local';bar.append(over);

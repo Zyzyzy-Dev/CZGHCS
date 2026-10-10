@@ -1,5 +1,5 @@
 /* 附加参数编辑器：修改草稿，随 API 方案新建或覆盖保存。 */
-import {el,button} from './components.js?v=0.4.0-dev.26';
+import {el,button} from './components.js?v=0.4.0-dev.27';
 export function editAdditional(value,onSave){
  const dialog=el('dialog','detail-dialog prompt-editor');dialog.setAttribute('aria-label','附加参数');dialog.append(el('h2','','附加参数'));
  const fields={};
