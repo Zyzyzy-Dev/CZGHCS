@@ -1,15 +1,16 @@
 /* 工作台宿主接口：连接只读来源、方案服务、RPC 操作和独立上下文准备。 */
-import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.4.0-dev.13';
-import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.13';
-import { captureSources } from './sources.js?v=0.4.0-dev.13';
-import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.13';
-import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.13';
-import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.13';
-import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.13';
-import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.13';
-import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.13';
-import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.13';
-import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.13';
+import { migrateSchemes, applySchemeOperation, assertSafeData, rememberScheme } from '../planning/schemes.js?v=0.4.0-dev.14';
+import { createApiSchemes } from './api-schemes.js?v=0.4.0-dev.14';
+import { captureSources } from './sources.js?v=0.4.0-dev.14';
+import { captureHelperVariables, createTemplateRenderer } from './template-compat.js?v=0.4.0-dev.14';
+import { resolvePreset } from '../planning/presets.js?v=0.4.0-dev.14';
+import { adapters } from '../planning/compatibility.js?v=0.4.0-dev.14';
+import { buildPlanningContext } from '../planning/context.js?v=0.4.0-dev.14';
+import { cleanSettings } from '../bridge/protocol.js?v=0.4.0-dev.14';
+import { materializePluginMacros } from './plugin-macros.js?v=0.4.0-dev.14';
+import { freezeCurrentRequest } from '../planning/current-request.js?v=0.4.0-dev.14';
+import { createCredentialStore } from './credential-store.js?v=0.4.0-dev.14';
+import { profileRequest, authorizeLocalRequest } from '../planning/profiles.js?v=0.4.0-dev.14';
 const ID = 'czgh_external_planner';
 export function createWorkbench({ context, headers, saveSettings }) {
     let source;
@@ -128,12 +129,14 @@ export function createWorkbench({ context, headers, saveSettings }) {
             }
             const frozen = await capture(signal, state.selection.extraBooks, data.type);
             const snapshotData = await materializePluginMacros(frozen,state.selection,globalThis.STBaiBaiBook);
+            await captureHelperVariables(snapshotData, context(), globalThis.TavernHelper, data.type);
+            signal.throwIfAborted();
             const selectedPreset=snapshotData.presets[state.selection.presetId||snapshotData.currentPreset];
             snapshotData.maxContext=Number(selectedPreset?.openai_max_context)||snapshotData.maxContext;
             snapshotData.inputBudget=snapshotData.maxContext-Number(config.maxTokens);
             if(snapshotData.inputBudget<=0)throw new Error('规划最大输出已超过所选预设的上下文额度。');
             snapshotData.trigger = data.type || 'normal';
-            const built = await buildPlanningContext({ snapshot: snapshotData, selection: state.selection, worldState: context().chatMetadata?.czghCreativePlanningWorld || {}, tokenize: text => context().getTokenCountAsync(text) });
+            const built = await buildPlanningContext({ snapshot: snapshotData, selection: state.selection, worldState: context().chatMetadata?.czghCreativePlanningWorld || {}, tokenize: text => context().getTokenCountAsync(text), serializeYaml: value => globalThis.SillyTavern.libs?.yaml?.stringify?.(value), renderTemplate: createTemplateRenderer({ enabled: state.templateCompat, api: globalThis.EjsTemplate, signal }) });
             signal.throwIfAborted();
             if (state.apiSelection === 'current') {
                 return { ...built, request: currentRequest };

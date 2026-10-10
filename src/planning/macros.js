@@ -1,15 +1,15 @@
 /* 私有宏解析：局部变量不写回酒馆；未授权资料宏不展开；未知语义阻断生成。 */
 const safeKey = key => key && !['__proto__', 'constructor', 'prototype'].includes(key);
 const print = value => value == null ? '' : typeof value === 'string' ? value : JSON.stringify(value);
-export function expandMacros(text, { snapshot, compatibilityIds = [], variables = { local: {}, global: {} } }) {
+export function expandMacros(text, { snapshot, compatibilityIds = [], variables = { local: {}, global: {} }, serializeYaml }) {
     const state = structuredClone(variables), diagnostics = [];
     state.local ??= {}; state.global ??= {};
     const env = snapshot.macroEnvironment || {};
     const issue = (code, message, blocking = false) => diagnostics.push({ code, message, blocking });
     const pathValue = (value, path) => {
-        for (const key of path.replace(/\[(\d+)\]/g, '.$1').split('.')) {
+        for (const key of path.replace(/\[(?:["']([^"']+)["']|(\d+))\]/g, (_, quoted, index) => '.' + (quoted ?? index)).split('.')) {
             if (!safeKey(key)) return undefined;
-            value = value?.[key];
+            value = value != null && Object.hasOwn(Object(value), key) ? value[key] : undefined;
         }
         return value;
     };
@@ -19,6 +19,16 @@ export function expandMacros(text, { snapshot, compatibilityIds = [], variables 
         if (name === 'trim') return '';
         if (name === 'newline') return '\n';
         if (name === 'noop') return '';
+        const helper = /^(get|format)_(message|chat|character|preset|global)_variable$/.exec(name);
+        if (helper) {
+            if (!Object.hasOwn(snapshot.helperVariables || {}, helper[2])) { issue('helper-unavailable', `无法读取酒馆助手 ${helper[2]} 变量，请检查酒馆助手是否已加载。`, true); return ''; }
+            const strip = value => Array.isArray(value) ? value.map(strip) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => !key.startsWith('$') && safeKey(key)).map(([key, child]) => [key, strip(child)])) : value;
+            const value = strip(pathValue(snapshot.helperVariables[helper[2]], args.join('::')) ?? null);
+            if (helper[1] === 'get' || typeof value === 'string') return typeof value === 'string' ? value : JSON.stringify(value);
+            const yaml = serializeYaml?.(value);
+            if (typeof yaml !== 'string') { issue('yaml-unavailable', '格式化变量宏需要 YAML 序列化接口。', true); return ''; }
+            return yaml.trimEnd();
+        }
         if (Object.hasOwn(env, name) && typeof env[name] !== 'object') return print(env[name]);
         if (/^(?:set|get|add|inc|dec)(?:global)?var$/.test(name)) {
             const map = name.includes('global') ? state.global : state.local;
@@ -60,7 +70,12 @@ export function expandMacros(text, { snapshot, compatibilityIds = [], variables 
             if (nesting) { issue('unresolved-macro', '存在未闭合的宏。', true); return result; }
             const token = parse(input.slice(start + 2, end), depth + 1);
             evaluations++;
-            result += replace(token);
+            let replacement = replace(token);
+            if (/^format_(message|chat|character|preset|global)_variable::/i.test(token)) {
+                const prefix = result.slice(result.lastIndexOf('\n') + 1);
+                replacement = replacement.replaceAll('\n', '\n' + ' '.repeat(prefix.length));
+            }
+            result += replacement;
             cursor = end + 2;
         }
         return result;

@@ -1,18 +1,18 @@
 /* 独立规划消息组装：预设标记、私有宏、世界书扫描和指定插件的注入位置。 */
-import { resolvePreset } from './presets.js?v=0.4.0-dev.13';
-import { scanWorldInfo } from './world-info.js?v=0.4.0-dev.13';
-import { expandMacros } from './macros.js?v=0.4.0-dev.13';
-import { selectInjections } from './compatibility.js?v=0.4.0-dev.13';
+import { resolvePreset } from './presets.js?v=0.4.0-dev.14';
+import { scanWorldInfo } from './world-info.js?v=0.4.0-dev.14';
+import { expandMacros } from './macros.js?v=0.4.0-dev.14';
+import { selectInjections } from './compatibility.js?v=0.4.0-dev.14';
 const roles = ['system', 'user', 'assistant'];
-export async function buildPlanningContext({ snapshot, selection, worldState = {}, tokenize, random = Math.random }) {
+export async function buildPlanningContext({ snapshot, selection, worldState = {}, tokenize, random = Math.random, renderTemplate, serializeYaml }) {
     if (snapshot.capabilities?.groupChat) throw new Error('当前独立上下文暂未验证群聊角色轮换，请在单角色聊天中使用。');
     if (snapshot.capabilities?.media) throw new Error('当前聊天包含附件，尚未实现附件的独立来源组装；正文已停止以避免丢失附件。');
     const preset = resolvePreset(snapshot, selection);
-    const scan = await scanWorldInfo({ snapshot, selection, previousState: worldState, tokenize, random });
+    const scan = await scanWorldInfo({ snapshot, selection, previousState: worldState, tokenize, random, serializeYaml });
     const injected = selectInjections(snapshot, selection.compatibilityIds);
     const diagnostics = [...preset.diagnostics, ...scan.diagnostics, ...injected.diagnostics];
     let variables = scan.variables;
-    const expand = text => { const r = expandMacros(text, { snapshot, compatibilityIds: selection.compatibilityIds, variables }); variables = r.variables; diagnostics.push(...r.diagnostics); return r.text; };
+    const expand = text => { const r = expandMacros(text, { snapshot, compatibilityIds: selection.compatibilityIds, variables, serializeYaml }); variables = r.variables; diagnostics.push(...r.diagnostics); return r.text; };
     const c = snapshot.character || {};
     const fields = { charDescription: c.description || c.data?.description || '', charPersonality: c.personality || c.data?.personality || '', scenario: c.scenario || c.data?.scenario || '', personaDescription: snapshot.macroEnvironment.persona || '', worldInfoBefore: scan.native.worldInfoBefore, worldInfoAfter: scan.native.worldInfoAfter };
     const history = snapshot.history.map(m => ({ role: m.role, content: structuredClone(m.content) }));
@@ -24,7 +24,15 @@ export async function buildPlanningContext({ snapshot, selection, worldState = {
         else if (item.position === 0) end.push(message);
     }
     for (const item of scan.native.WIDepthEntries) depthItems.push({ depth: item.depth ?? 4, message: { role: roles[item.role ?? 0] || 'system', content: item.entries.join('\n') } });
-    if (scan.native.ANBeforeEntries.length || scan.native.ANAfterEntries.length || scan.native.EMEntries.length || Object.keys(scan.native.outletEntries).length) throw new Error('选中世界书使用作者注释、示例或 outlet 位置，尚未验证这些位置的隔离组装，请先关闭对应条目。');
+    if (Object.keys(scan.native.outletEntries).length) throw new Error('选中世界书使用尚未支持的 outlet 位置。');
+    const note = snapshot.authorNote;
+    if (note?.enabled && note.position !== -1) {
+        const content = [ ...scan.native.ANBeforeEntries, expand(note.value), ...scan.native.ANAfterEntries ].filter(Boolean).join('\n');
+        const message = { role: roles[note.role] || 'system', content };
+        if (content && note.position === 1) depthItems.push({ depth: Number(note.depth) || 0, message });
+        else if (content && note.position === 2) start.push(message);
+        else if (content && note.position === 0) end.push(message);
+    }
     let usedHistory = false;
     for (const entry of preset.execution) {
         if (entry.identifier === 'chatHistory') { messages.push(...history); usedHistory = true; continue; }
@@ -32,7 +40,12 @@ export async function buildPlanningContext({ snapshot, selection, worldState = {
         if (entry.marker) {
             if (Object.hasOwn(fields, entry.identifier)) content = expand(fields[entry.identifier]);
             else if (entry.identifier === 'dialogueExamples') {
-                content = expand(c.mes_example || c.data?.mes_example || '');
+                const examples = [expand(c.mes_example || c.data?.mes_example || '')];
+                for (const item of scan.native.EMEntries) {
+                    if (item.position === 0) examples.unshift(item.content);
+                    else examples.push(item.content);
+                }
+                content = examples.filter(Boolean).join('\n<START>\n');
                 let example;
                 const flush = () => { if(example?.content.trim())messages.push({...example,content:example.content.trim()});example=null; };
                 for (const line of content.split(/\r?\n/)) {
@@ -60,6 +73,12 @@ export async function buildPlanningContext({ snapshot, selection, worldState = {
     for(const item of depthItems){const anchor=Math.max(historyStart,historyEnd-item.depth);if(!buckets.has(anchor))buckets.set(anchor,[]);buckets.get(anchor).push(item.message);}
     for(const [anchor,items] of [...buckets].sort((a,b)=>b[0]-a[0])) {
         messages.splice(Math.max(0,anchor),0,...items);
+    }
+    const initialErrors = diagnostics.filter(d => d.blocking);
+    if (initialErrors.length) throw new Error(initialErrors.map(d => d.message).join('\n'));
+    for (const message of messages) {
+        if (renderTemplate) message.content = await renderTemplate(message.content);
+        message.content = message.content.replace(/{{\s*(?:get|format)_(?:message|chat|character|preset|global)_variable::[^{}]*}}/gi, token => expand(token));
     }
     const blocked = diagnostics.filter(d => d.blocking);
     if (blocked.length) throw new Error(blocked.map(d => d.message).join('\n'));

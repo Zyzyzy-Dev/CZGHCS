@@ -2,6 +2,7 @@
 export const defaults = Object.freeze({
     enabled: false,
     stream: false,
+    templateCompat: false,
     apiUrl: '',
     model: '',
     profileId: '',

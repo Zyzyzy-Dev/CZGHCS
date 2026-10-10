@@ -1,7 +1,7 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.13';
-import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.13';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.13';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.14';
+import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.14';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.14';
 export function renderView(root, state, ui, act) {
     const s=state.settings, selection=s.selection;
     root.replaceChildren();
@@ -44,6 +44,7 @@ export function renderView(root, state, ui, act) {
         api.append(check('流式生成规划',s.stream,v=>act('settings.update',{stream:v})));root.append(section('通用设置',api));
         const compatibility=el('div','section-body');
         for(const [category,label] of [['memory','记忆插件'],['plot','剧情规划插件']]){compatibility.append(el('h3','',label));for(const plugin of state.compatibility.filter(p=>p.category===category)){const line=el('div','plugin-row');line.append(check(plugin.name,selection.compatibilityIds.includes(plugin.id),v=>act('selection.update',{compatibilityIds:v?[...selection.compatibilityIds,plugin.id]:selection.compatibilityIds.filter(x=>x!==plugin.id)})),el('small','muted',plugin.status));compatibility.append(line);}}
+        compatibility.append(check('EJS 模板兼容（ST-Prompt-Template）',s.templateCompat,v=>act('settings.update',{templateCompat:v})),el('p','hint','按已安装模板插件执行 EJS；模板中的脚本可能修改变量。不会自动执行 MVU 生成后回写。'));
         root.append(section('插件兼容',compatibility));
         const display=el('div','section-body');display.append(check('在用户消息下显示规划',s.displayPlan,v=>act('settings.update',{displayPlan:v})));root.append(section('显示设置',display));
         const advanced=el('div','section-body');advanced.append(select('规划标签',[{id:'auto',name:'自动跟随预设标签'},{id:'manual',name:'手动指定标签'}],s.tagMode,v=>act('settings.update',{tagMode:v})));

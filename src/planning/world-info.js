@@ -1,13 +1,13 @@
 /* 世界书私有扫描入口：合并挂载来源、本地开关、原生扫描器和独立计时状态。 */
-import { createNativeScanner } from './native-world-scan.js?v=0.4.0-dev.13';
-import { expandMacros } from './macros.js?v=0.4.0-dev.13';
-import { selectInjections } from './compatibility.js?v=0.4.0-dev.13';
+import { createNativeScanner } from './native-world-scan.js?v=0.4.0-dev.14';
+import { expandMacros } from './macros.js?v=0.4.0-dev.14';
+import { selectInjections } from './compatibility.js?v=0.4.0-dev.14';
 export const entryKey = (book, uid) => JSON.stringify([book, uid]);
-export async function scanWorldInfo({ snapshot, selection = {}, previousState = {}, tokenize, random = Math.random }) {
+export async function scanWorldInfo({ snapshot, selection = {}, previousState = {}, tokenize, random = Math.random, serializeYaml }) {
     const diagnostics = [], nextState = structuredClone(previousState);
     let variables = structuredClone(snapshot.variables || { local: {}, global: {} });
     const expand = text => {
-        const value = expandMacros(text, { snapshot, compatibilityIds: selection.compatibilityIds, variables });
+        const value = expandMacros(text, { snapshot, compatibilityIds: selection.compatibilityIds, variables, serializeYaml });
         variables = value.variables; diagnostics.push(...value.diagnostics);
         if (value.diagnostics.some(d => d.blocking)) throw new Error(value.diagnostics.filter(d => d.blocking).map(d => d.message).join('\n'));
         return value.text;
