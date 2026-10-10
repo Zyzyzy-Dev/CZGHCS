@@ -94,19 +94,27 @@ export function parseRules(raw) {
 
 export function planningMessages(messages, settings) {
     return [...structuredClone(messages), { role: 'system', content:
-        `${settings.plannerInstruction}\n输出范围以预设指定的规划区块为准：逐项完成已启用步骤及各子项，不以是否为问句判断是否需要输出。问题式引导逐项回答；非问题式的指导、声明、必须项、禁止项、节奏、篇幅、比例和格式约束，须在原有标题、层级及编号下逐字复述原文，无论该内容是直接写在预设条目中的文本，还是由变量宏提供的文本，保留原有措辞、否定词、数值和标签，不概括、不改写、不替换为执行说明。随后在同一子项内另起一行，以“本轮安排：”说明如何落实该项要求；原文与安排必须分开，安排不能替代原文。安排须遵守原文的作用对象、单位、范围、强度、条件及否定关系，不得把一种约束转换成另一种约束，也不得自行增加原文未规定的硬性数值或规则。预设其他已启用条目对该要求有具体定义时，安排须遵循其定义；没有定义时不得声称某个数值来自预设。直接写在预设条目中的非问题式引导照录原文；只有涉及变量宏时，才使用展开后的实际文本代替宏占位符。是否复述取决于它是否为非问题式引导，与是否使用宏无关。一个子项同时含有指导和问题时，指导原样保留，问题另行回答；预设明确要求列举、计算、召回或预写的任务仍须完成，不仅复制任务指令。复述范围仅限预设指定规划区块内的已启用内容，不把整个预设或规划区块外的成品模板复制进来。不得只写“已知悉”“遵守要求”或“全部通过”代替具体约束，也不得用情节安排替换该步骤原有的写作要求。不得省略、合并或用总括性结论代替后续步骤。条件不成立时只按预设要求跳过；资料缺失时说明缺失，不编造事实。包括预设要求的信息读取、召回、核算、例句、预写片段和格式确认。读取本次上下文中的已有资料，与生成新的成品分别处理；不得因本阶段仅输出规划而跳过资料读取或召回。不得新增预设未要求的自我评价、总结、检查报告或结束宣言。\n结果必须仅包含一个完整区块：${settings.openTag}规划内容${settings.closeTag}。闭合标签后立即结束。` }];
+        `${settings.plannerInstruction}\n输出范围以预设指定的规划区块为准：逐项完成已启用步骤及各子项，不以是否为问句判断是否需要输出。问题式引导逐项回答；非问题式的指导、声明、必须项、禁止项、节奏、篇幅、比例和格式约束，须在原有标题、层级及编号下逐字复述原文，无论该内容是直接写在预设条目中的文本，还是由变量宏提供的文本，保留原有措辞、否定词、数值和标签，不概括、不改写、不替换为执行说明。随后在同一子项内另起一行，以“本轮安排：”说明如何落实该项要求；原文与安排必须分开，安排不能替代原文。安排须遵守原文的作用对象、单位、范围、强度、条件及否定关系，不得把一种约束转换成另一种约束，也不得自行增加原文未规定的硬性数值或规则。预设其他已启用条目对该要求有具体定义时，安排须遵循其定义；没有定义时不得声称某个数值来自预设。直接写在预设条目中的非问题式引导照录原文；只有涉及变量宏时，才使用展开后的实际文本代替宏占位符。是否复述取决于它是否为非问题式引导，与是否使用宏无关。一个子项同时含有指导和问题时，指导原样保留，问题另行回答；预设明确要求列举、计算、召回或预写的任务仍须完成，不仅复制任务指令。复述范围仅限预设指定规划区块内的已启用内容，不把整个预设或规划区块外的成品模板复制进来。不得只写“已知悉”“遵守要求”或“全部通过”代替具体约束，也不得用情节安排替换该步骤原有的写作要求。不得省略、合并或用总括性结论代替后续步骤。条件不成立时只按预设要求跳过；资料缺失时说明缺失，不编造事实。包括预设要求的信息读取、召回、核算、例句、预写片段和格式确认。预设中的格式确认须按该步骤原文指定的对象作答，不得用本插件要求的规划外层标签或仅输出规划的限制替换原预设对正文及附加成品的格式要求；本阶段不生成成品，并不妨碍复述其格式要求。读取本次上下文中的已有资料，与生成新的成品分别处理；不得因本阶段仅输出规划而跳过资料读取或召回。不得新增预设未要求的自我评价、总结、检查报告或结束宣言。\n结果必须仅包含一个完整区块：${settings.openTag}规划内容${settings.closeTag}。闭合标签后立即结束。` }];
 }
 
 export function extractPlan(text, settings, finishReason) {
     if (finishReason === 'length') throw new Error('规划被输出额度截断，请提高额度后重试。');
     if (typeof text !== 'string') throw new Error('规划 API 未返回文本。');
-    const start = text.indexOf(settings.openTag);
-    const end = text.indexOf(settings.closeTag, start + settings.openTag.length);
+    // Inline code quoting an exact delimiter is documentation, not a boundary.
+    // Preserve offsets and original text; do not exempt arbitrary code blocks.
+    let boundaries = text;
+    for (const tag of [settings.openTag, settings.closeTag]) {
+        const quoted = '`' + tag + '`';
+        boundaries = boundaries.split(quoted).join(' '.repeat(quoted.length));
+    }
+    const start = boundaries.indexOf(settings.openTag);
+    const end = boundaries.indexOf(settings.closeTag, start + settings.openTag.length);
     if (start < 0 || end < 0 || text.slice(0, start).trim() || text.slice(end + settings.closeTag.length).trim()) {
         throw new Error('规划标签缺失，或规划之外出现额外输出；本次不注入。');
     }
     const plan = text.slice(start + settings.openTag.length, end).trim();
-    if (!plan || plan.includes(settings.openTag) || plan.includes(settings.closeTag)) throw new Error('规划为空或存在重复嵌套标签。');
+    const inner = boundaries.slice(start + settings.openTag.length, end);
+    if (!plan || inner.includes(settings.openTag) || inner.includes(settings.closeTag)) throw new Error('规划为空或存在重复嵌套标签。');
     return plan;
 }
 

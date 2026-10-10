@@ -111,3 +111,14 @@ test('declarative planning requirements migrate and remain binding on the writer
     assert.match(writer.at(-1).content,/自定义正文要求/);
     assert.deepEqual(source,original);
 });
+
+
+test('quoted delimiter references inside a plan do not close its outer block',()=>{
+    const settings={...config,openTag:'<Think>',closeTag:'</Think>'};
+    const content='格式引用：`<Think>` 和 `</Think>`。\n后续内容';
+    assert.equal(extractPlan('<Think>\n'+content+'\n</Think>',settings,'stop'),content);
+    for(const text of ['<Think>x</Think>正文</Think>','<Think>x</Think><Think>y</Think>','`<Think>`x`</Think>`','<Think>x<Think>y</Think>'])assert.throws(()=>extractPlan(text,settings,'stop'));
+    const custom={...config,openTag:'[plan+]',closeTag:'[/plan+]'};
+    assert.equal(extractPlan('[plan+]引用 `[/plan+]`[/plan+]',custom,'stop'),'引用 `[/plan+]`');
+    assert.match(planningMessages([],settings).at(-1).content,/不得用本插件要求的规划外层标签/);
+});

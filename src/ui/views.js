@@ -1,7 +1,7 @@
 /* 三页工作台视图：设置、预设开关、世界书开关与来源详情；所有操作交给宿主。 */
-import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.18';
-import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.18';
-import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.18';
+import { el, button, field, check, toggleSwitch, select, section, detail, ask } from './components.js?v=0.4.0-dev.19';
+import { entryKey } from '../planning/world-info.js?v=0.4.0-dev.19';
+import { schemeSelectionState } from '../planning/schemes.js?v=0.4.0-dev.19';
 export function renderView(root, state, ui, act) {
     const s=state.settings, selection=s.selection;
     root.replaceChildren();
