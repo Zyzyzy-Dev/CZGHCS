@@ -109,8 +109,8 @@ export function extractPlan(text, settings, finishReason) {
     }
     const start = boundaries.indexOf(settings.openTag);
     const end = boundaries.indexOf(settings.closeTag, start + settings.openTag.length);
-    if (start < 0 || end < 0 || text.slice(0, start).trim() || text.slice(end + settings.closeTag.length).trim()) {
-        throw new Error('规划标签缺失，或规划之外出现额外输出；本次不注入。');
+    if (start < 0 || end < 0) {
+        throw new Error('未找到完整的规划标签区块；本次不注入。');
     }
     const plan = text.slice(start + settings.openTag.length, end).trim();
     const inner = boundaries.slice(start + settings.openTag.length, end);

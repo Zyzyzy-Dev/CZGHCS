@@ -49,8 +49,8 @@ test('exact adapter edits instructions but never history/user input', () => {
 test('custom delimiters work without regex assumptions', () => {
     assert.equal(extractPlan(' [plan+]内容[/plan+] ', { ...config, openTag: '[plan+]', closeTag: '[/plan+]' }, 'stop'), '内容');
 });
-test('incomplete, duplicate, empty, truncated or leaked-body plans cannot be injected', () => {
-    for (const text of ['', '<Abstract>x', '<Abstract></Abstract>', '<Abstract>x<Abstract>y</Abstract>', '<Abstract>x</Abstract>正文', '前言<Abstract>x</Abstract>']) {
+test('incomplete, nested, empty or truncated plans cannot be injected', () => {
+    for (const text of ['', '<Abstract>x', '<Abstract></Abstract>', '<Abstract>x<Abstract>y</Abstract>']) {
         assert.throws(() => extractPlan(text, config, 'stop'));
     }
     assert.throws(() => extractPlan('<Abstract>完整外观</Abstract>', config, 'length'));
@@ -117,8 +117,21 @@ test('quoted delimiter references inside a plan do not close its outer block',()
     const settings={...config,openTag:'<Think>',closeTag:'</Think>'};
     const content='格式引用：`<Think>` 和 `</Think>`。\n后续内容';
     assert.equal(extractPlan('<Think>\n'+content+'\n</Think>',settings,'stop'),content);
-    for(const text of ['<Think>x</Think>正文</Think>','<Think>x</Think><Think>y</Think>','`<Think>`x`</Think>`','<Think>x<Think>y</Think>'])assert.throws(()=>extractPlan(text,settings,'stop'));
+    for(const text of ['`<Think>`x`</Think>`','<Think>x<Think>y</Think>'])assert.throws(()=>extractPlan(text,settings,'stop'));
     const custom={...config,openTag:'[plan+]',closeTag:'[/plan+]'};
     assert.equal(extractPlan('[plan+]引用 `[/plan+]`[/plan+]',custom,'stop'),'引用 `[/plan+]`');
     assert.match(planningMessages([],settings).at(-1).content,/不得用本插件要求的规划外层标签/);
+});
+
+
+test('extract first complete planning block and exclude all surrounding output from writer context',()=>{
+    const settings={...config,openTag:'<Think>',closeTag:'</Think>'};
+    const raw='前言\n<Think>\n原文要求\n引用 `</Think>`\n本轮安排\n</Think>\n英文自检 output_reply\n<Think>另一段</Think>';
+    const plan=extractPlan(raw,settings,'stop');
+    assert.equal(plan,'原文要求\n引用 `</Think>`\n本轮安排');
+    const injected=writingMessages([{role:'user',content:'本轮输入'}],plan,settings).at(-1).content;
+    assert.ok(injected.endsWith('<Think>\n'+plan+'\n</Think>'));
+    assert.doesNotMatch(injected,/前言|英文自检|output_reply|另一段/);
+    assert.equal(extractPlan('前言[plan+]内容[/plan+]尾文',{...settings,openTag:'[plan+]',closeTag:'[/plan+]'},'stop'),'内容');
+    assert.throws(()=>extractPlan('<Think>内容</Think>尾文',settings,'length'));
 });
