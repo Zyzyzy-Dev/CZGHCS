@@ -1,8 +1,8 @@
 /* 主页面规划控制器：调用独立 API、监听生成、维护取消状态；不操作 UI DOM。 */
-import { readPlanResponse } from './stream.js?v=0.4.0-dev.28';
-import { createId } from '../bridge/id.js?v=0.4.0-dev.28';
-import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.28';
-import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.28';
+import { readPlanResponse } from './stream.js?v=0.4.0-dev.29';
+import { createId } from '../bridge/id.js?v=0.4.0-dev.29';
+import { migrateSettings, resolvePlanningTags, validateSettings, planningMessages, writingMessages, extractPlan, eligibleRequest, unresolvedBaiBaiMacros } from '../planning/core.js?v=0.4.0-dev.29';
+import { resolveProfile, profileRequest } from '../planning/profiles.js?v=0.4.0-dev.29';
 export function createPlanner({ getContext, getRequestHeaders, stopGeneration, getYaml = () => null, onState = () => {}, prepare, onPlanReady = () => {}, onDiscard = () => {}, onProgress = () => {}, onDiagnostics = () => {} }) {
 const state = {status: '', preview: ''};
 const ID = 'czgh_external_planner';
@@ -21,6 +21,15 @@ function status(text) { if (statusNode) statusNode.textContent = text; }
 function chatIdentity() {
     const c = ctx();
     return JSON.stringify([c.chatId, c.characterId, c.groupId]);
+}
+// Compare only message structure and selected content; unrelated plugin metadata is not an edit.
+function chatContentSnapshot() {
+    return JSON.stringify((ctx().chat || []).map(message => ({
+        user: !!message.is_user, system: !!message.is_system, name: message.name ?? '',
+        mes: message.mes ?? '', content: message.content ?? null,
+        swipe: message.swipe_id ?? 0,
+        selectedSwipe: message.swipes?.[message.swipe_id ?? 0] ?? null,
+    })));
 }
 function abortPending() {
     const run=pending;if(!run)return;pending=null;run.controller.abort();
@@ -117,7 +126,7 @@ async function onRequest(data) {
         if(config.autoReply===false){
             previewNode.value=`${config.openTag}\n${plan}\n${config.closeTag}`;
             record.text=plan;record.phase='awaiting';
-            const chatSnapshot=JSON.stringify(ctx().chat);
+            const chatSnapshot=chatContentSnapshot();
             await new Promise((resolve,reject)=>{
                 const abort=()=>reject(new Error('本轮已取消。'));
                 run.resume=()=>{run.controller.signal.removeEventListener('abort',abort);resolve();};
@@ -125,7 +134,7 @@ async function onRequest(data) {
                 status('规划已完成，等待点击“生成正文回复”。');onProgress(record);
             });
             run.controller.signal.throwIfAborted();
-            if(pending!==run||run.identity!==chatIdentity()||JSON.stringify(ctx().chat)!==chatSnapshot)throw Error('聊天内容已变化，请重新生成规划。');
+            if(pending!==run||run.identity!==chatIdentity()||chatContentSnapshot()!==chatSnapshot)throw Error('聊天内容已变化，请重新生成规划。');
         }
         // Independent mode may not rewrite any original instruction via legacy replacement rules.
         data.messages = writingMessages(original, plan, prepare ? { ...config, rules: '[]' } : config);

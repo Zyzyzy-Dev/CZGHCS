@@ -40,7 +40,7 @@ try{
  await frame.getByLabel('选择预设',{exact:true}).waitFor({timeout:5000});
  assert.equal(await page.locator('#czgh-planner-container').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
  assert.equal(await frame.locator('body').evaluate(el=>getComputedStyle(el).borderBottomRightRadius),'14px');
- assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.28$/);
+ assert.match(await page.locator('iframe[title="创作规划"]').getAttribute('src'),/\?v=0\.4\.0-dev\.29$/);
  // Resize preserves the frame and backdrop close never cancels generation.
  const panel=page.locator('#czgh-planner-container');
  const sizeBefore=await panel.boundingBox();
@@ -254,6 +254,7 @@ try{
  await floor.getByText('· 等待生成正文',{exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>context.chat.length),1);
  assert.equal(await frame.locator('#resume').isEnabled(),true);
+ await page.evaluate(()=>{context.chat[0].extra={otherPlugin:{displayUpdated:true}};});
  await floor.getByRole('button',{name:'生成正文回复',exact:true}).click();
  const generated=await page.evaluate(()=>window.testGeneration);
  await page.evaluate(()=>context.extensionSettings.czgh_external_planner.autoReply=true);
